@@ -72,8 +72,16 @@ PlayerController.prototype.update = function() {
 
 	var input = this.inputHandler.getInput();
 
-	if(input.scroll !== 0){
-		this.camera.position.z -= input.scroll*10;
+	if (input.scroll !== 0) {
+		var i = 0;
+		var scrollFunc = function() {
+			if (i === 15) {
+				game.scene.removeEventListener("tick", scrollFunc);
+			}			
+			this.camera.position.z -= input.scroll;
+			i++;
+		}.bind(this);
+		game.scene.addEventListener("tick", scrollFunc);
 	}
 
 	switch (input.state) {
@@ -82,15 +90,19 @@ PlayerController.prototype.update = function() {
 			if (!!this.selected) {
 				var objects = this._getObjectsOnMousePos(input.currMousePos);
 				var field = this._checkForField(objects);
-				if(!!field){
-					var path = game.world.getPath(this.selected, field);
-					path.forEach(function(element, index){
-						element.blink(20);
-					});
+				if (!!field) {
+					try {
+						var path = game.world.map.findPath(this.selected.placedOn, field);
+						path.forEach(function(element, index) {
+							element.blink(20);
+						});
+					} catch (e) {
+						console.warn("no path to display");
+					}
 				}
 			}
-
 			break;
+
 		case input.states.RIGHTCLICKED:
 			this.deselect();
 			break;
@@ -130,9 +142,9 @@ PlayerController.prototype._checkForActors = function(gameObjects) {
 	gameObjects.forEach(function(element, index) {
 		if (element.type === "actor") {
 			actors.push(element);
-		} else if (element.type === "field" &&
+		} else if (element instanceof Field &&
 			!!element.occupant &&
-			element.occupant.type === "actor") {
+			element.occupant instanceof PlayerActor) {
 
 			actors.push(element.occupant);
 		}
@@ -148,7 +160,7 @@ PlayerController.prototype._checkForField = function(gameObjects) {
 
 	fields = [];
 	gameObjects.forEach(function(element, index) {
-		if (element.type === "field") {
+		if (element instanceof Field) {
 			fields.push(element);
 		}
 	});
@@ -172,14 +184,14 @@ PlayerController.prototype._getObjectsOnMousePos = function(position) {
 		this.camera.position,
 		magicVector,
 		0,
-		1000
+		5000
 	);
 
 	var selectedElements = [];
 
 	// determine collisions
 	ray.intersectObjects(game.scene.children).forEach(function(element, index) {
-		selectedElements.push(element.object.gameObject);
+		selectedElements.push(element.object.userData);
 	});
 
 

@@ -1,21 +1,20 @@
 "use strict";
 
-var Field = function(position, fieldType) {
+var Field = function(x, y, fieldType) {
 
-	this.position = position;
+	this.position = new Position(x, y);
 
-	this.fieldType = fieldType || Field.getRandomFieldType();
+	this.fieldType = fieldType || FieldTypes.random();
 
 	this.model = this.generateModel();
 
 	this.occupant = null;
 
-	this.isBlocked = (this.fieldType.name === "water");
-
-	this.type = "field";
-	this.name = "Field";
+	this.isBlocked = false;
 
 }
+
+Field.prototype = Object.create(GameObject.prototype);
 
 /**
  * Adds content to a field and adjusts the position
@@ -23,7 +22,7 @@ var Field = function(position, fieldType) {
 Field.prototype.placeContent = function(content) {
 
 	if (this.isBlocked && this.occupant) {
-		throw new Error("Already have something on this field. remove this first!")
+		//throw new Error("Already have something on this field. remove this first!")
 		return;
 	}
 
@@ -43,9 +42,6 @@ Field.prototype.placeContent = function(content) {
  */
 Field.prototype.removeContent = function(supressWarnings) {
 	if (!this.occupant) {
-		if (!supressWarnings) {
-			throw new Error("No Occupant on Field to remove");
-		}
 		console.warn("No Occupant on Field to remove");
 		return null;
 	}
@@ -64,6 +60,13 @@ Field.prototype.removeContent = function(supressWarnings) {
  */
 Field.prototype.generateModel = function() {
 
+	//if a model already exists, 
+	//we need to remove it before loading the new one
+	if (!!this.model) {
+		game.scene.remove(this.model);
+		this.model = null;
+	}
+
 	var geometry = new THREE.BoxGeometry(
 		Field.FIELD_SIZE,
 		Field.FIELD_SIZE,
@@ -78,12 +81,18 @@ Field.prototype.generateModel = function() {
 	model.position.y = this.position.y * Field.FIELD_SIZE;
 	model.position.z = 0;
 
-	model.gameObject = this;
+
+	model.matrixAutoUpdate = false;
+
+	model.userData = this;
 
 	game.scene.add(model);
 
+	model.updateMatrix();
+
 	return model;
 }
+
 
 /**
  * Highlight a given model
@@ -108,10 +117,10 @@ Field.prototype.getNode = function() {
 }
 
 /**
-* Determines whether two fields are equal
-*/
-Field.prototype.equals = function(field){
-	return this.position.x === field.position.x && this.position.y === field.position.y
+ * Determines whether two fields are equal
+ */
+Field.prototype.equals = function(otherField) {
+	return this.position.equals(otherField.position);
 }
 
 
@@ -128,38 +137,49 @@ Field.FIELD_SIZE = 5;
 Field.FIELD_HEIGHT = 0.01;
 
 
-Field.FIELD_TYPES = {
+
+var FieldTypes = {
 	water: {
+		id: 0,
 		name: "water",
-		color: 0x0000ff,
 		movementCost: 3
 	},
 	grass: {
+		id: 1,
 		name: "grass",
-		color: 0x00ff00,
 		movementCost: 1
 	},
 	dirt: {
+		id: 2,
 		name: "dirt",
-		color: 0x333333,
 		movementCost: 1
 	},
 	stone: {
+		id: 3,
 		name: "stone",
-		color: 0x777777,
 		movementCost: 1
 	},
-}
-
-/**
- * returns a random field type depending on the available types in Field.FIELD_TYPES
- */
-Field.getRandomFieldType = function() {
-	var types = [];
-	for (var type in Field.FIELD_TYPES) {
-		if (Field.FIELD_TYPES.hasOwnProperty(type)) {
-			types.push(Field.FIELD_TYPES[type]);
+	byID: function(id) {
+		for (var type in FieldTypes) {
+			if (FieldTypes.hasOwnProperty(type) &&
+				!(FieldTypes[type] instanceof Function) &&
+				FieldTypes[type].id === id) {
+				return FieldTypes[type];
+			}
 		}
+	},
+	randomID: function(){
+		return Math.floor(Math.random()*4+1)-1;
+	},
+	random: function() {
+		var types = [];
+		for (var type in FieldTypes) {
+			if (FieldTypes.hasOwnProperty(type) &&
+				!(FieldTypes[type] instanceof Function)) {
+				types.push(FieldTypes[type]);
+			}
+		}
+		return types[Math.floor(Math.random() * types.length)];
 	}
-	return types[Math.floor(Math.random() * types.length)];
+
 }

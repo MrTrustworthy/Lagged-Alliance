@@ -7,10 +7,10 @@ var TextureManager = function() {
 	this.path = "./media/textures/";
 
 	this._textures = {
-		water: Field.FIELD_TYPES.water.name + ".gif", //+ ".jpg",
-		dirt: Field.FIELD_TYPES.dirt.name + ".jpg",
-		stone: Field.FIELD_TYPES.stone.name + ".png",
-		grass: Field.FIELD_TYPES.grass.name + ".jpg",
+		water: FieldTypes.water.name + ".jpg",
+		dirt: FieldTypes.dirt.name + ".jpg",
+		stone: FieldTypes.stone.name + ".png",
+		grass: FieldTypes.grass.name + ".jpg",
 		tree: "tree.jpg",
 		player: "player.jpg"
 	};
@@ -31,6 +31,7 @@ TextureManager.prototype.loadAllAvailableTextures = function() {
 			this._textures[key] = material;
 
 			//highlighted textures
+			console.log(key);
 			var material_hl = new THREE.MeshLambertMaterial({
 				map: THREE.ImageUtils.loadTexture(this.path + this._textures[key])
 			});

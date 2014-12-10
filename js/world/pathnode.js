@@ -17,5 +17,5 @@ var PathNode = function(field) {
 }
 
 PathNode.prototype.equals = function(other) {
-	return (this.position.x === other.position.x && this.position.y === other.position.y);
+	return this.position.equals(other.position);
 }

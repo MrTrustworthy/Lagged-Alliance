@@ -3,16 +3,25 @@
 /**
  * The gamemap represents the fields/floor of the game in a 2D-array
  */
-var GameMap = function(sizeX, sizeY) {
+var GameMap = function(sizeX, sizeY, seed) {
 
 	this.sizeX = sizeX || 8;
 	this.sizeY = sizeY || this.sizeX;
 
-	this.map = this._loadMap(this.sizeX, this.sizeY);
+	var time = Date.now();
 
+	this.seed = seed || this.generateSeed();
+
+	this.map = this._loadMap(this.sizeX, this.sizeY, this.seed);
+
+	this._improve(4);
+
+	console.log("generating world took", (Date.now() - time)/1000, "seconds");
 }
 
+GameMap.MAX_PATHFIND_ITERATIONS = 1000;
 
+// type-error-safe version of array[x][y]
 GameMap.prototype.get = function(x, y) {
 	try {
 		return this.map[x][y];
@@ -21,14 +30,22 @@ GameMap.prototype.get = function(x, y) {
 	}
 }
 
+//returns a random field
 GameMap.prototype.getRandomField = function() {
 	return this.get(
-		GUtil.getRandomInt(0, this.sizeX - 1),
-		GUtil.getRandomInt(0, this.sizeY - 1)
+		qp.getRandomInt(0, this.sizeX - 1),
+		qp.getRandomInt(0, this.sizeY - 1)
 	);
 
 }
 
+GameMap.prototype.generateSeed = function() {
+	var seed = []
+	for (var i = 0; i < this.sizeX * this.sizeY; i++) {
+		seed.push(FieldTypes.randomID());
+	}
+	return seed;
+}
 
 /**
  * -----------------------------------------------------------------------------------
@@ -40,117 +57,78 @@ GameMap.prototype.getRandomField = function() {
 /**
  * loads a map with the given size
  */
-GameMap.prototype._loadMap = function(sizeX, sizeY) {
+GameMap.prototype._loadMap = function(sizeX, sizeY, seed) {
 	var arr = [];
 	for (var x = 0; x < sizeX; x++) {
 		arr[x] = [];
 		for (var y = 0; y < sizeY; y++) {
-			arr[x][y] = new Field({
-				x: x,
-				y: y
-			});
+			arr[x][y] = new Field(x, y, FieldTypes.byID(seed.shift()));
 		}
 	}
+
+	arr.forEachField = function(callback_func) {
+		for (var x = 0; x < arr.length; x++) {
+			for (var y = 0; y < arr[0].length; y++) {
+				callback_func(arr[x][y], x, y);
+			}
+		}
+	}.bind(this);
+
 	return arr;
 }
 
 
+GameMap.prototype._improve = function(amount) {
+	amount = amount || 1;
 
-/**
- * Iterates through every field in the 2d array and executes
- * a callback for every field and its position
- */
-GameMap.prototype.forEach = function(callback_func) {
+	for (var i = 0; i < amount; i++) {
 
-		if (!this.map) throw new Error("Map not initialized");
 
-		for (var x = 0; x < this.map.length; x++) {
-			for (var y = 0; y < this.map[0].length; y++) {
 
-				callback_func(this.map[x][y], {
-					x: x,
-					y: y
-				});
+		this.map.forEachField(function(field, x, y) {
+
+			var types = FieldTypes;
+
+			var neighbours = this.neighboursOf(field);
+
+			var waterAmount = 0;
+
+			neighbours.forEach(function(element, index) {
+				if (element.fieldType.name === types.water.name) {
+					waterAmount++;
+				}
+			});
+
+			switch (waterAmount) {
+				case 0:
+					field.fieldTypeRep = qp.chance(50) ? types.grass : qp.chance(75) ? types.dirt : types.stone;
+					break;
+				case 1:
+					field.fieldTypeRep = qp.chance(90) ? types.grass : types.dirt;
+					break;
+				case 2:
+					field.fieldTypeRep = qp.chance(10) ? types.water : types.grass;
+					break;
+				case 3:
+					field.fieldTypeRep = qp.chance(30) ? types.water : types.grass;
+					break;
+				default:
+					field.fieldTypeRep = types.water;
+					break;
+
 			}
-		}
+
+		}.bind(this));
+
+		this.map.forEachField(function(field) {
+			field.fieldType = field.fieldTypeRep;
+			field.model = field.generateModel();
+		});
+
 	}
-	//------------------------------------------------------------------------------
-	//----------------------Unit Movement-------------------------------------------
-	//------------------------------------------------------------------------------
-
-/**
- * Moves an object on the first node of the path to the last node,
- */
-GameMap.prototype.moveAlongPath = function(actor, path) {
-
-	var deferred = new Deferred();
-
-	var i = 0;
-
-	//var actor = path[path.length - 1].occupant;
-
-	//moves the object to the next node until it reaches the target node
-	var move_to_next = function() {
-
-		if (path.length === 1) {
-			deferred.resolve();
-
-		} else {
-			var curr_field = path.pop();
-			curr_field.removeContent();
-
-			var end_field = path[path.length - 1];
-
-			this._animateMove(actor, end_field).then(move_to_next);
-
-			deferred.update(i);
-			i++;
-		}
-
-	}.bind(this);
-	move_to_next();
-
-	return deferred.promise;
-
 }
 
-/**
- * Moves an actor towards a certain point. as soon as the point is reached,
- * it will call onDone().
- * onDone is mostly used to Chain movement from the moveAlongPath function;
- */
-GameMap.prototype._animateMove = function(actor, field_b, onDone) {
 
-	var deferred = new Deferred();
-
-	//Those two need to be elsewhere
-	var speed = 0.3;
-	var delay = 20;
-
-	var difference = new THREE.Vector3(0, 0, 0).subVectors(field_b.model.position, actor.model.position);
-
-	var iteration_steps = Math.floor(difference.length()) / speed;
-	var i = 0;
-
-	var animateMovement = function() {
-
-		if (i < iteration_steps) {
-			actor.model.position.x += difference.x / iteration_steps;
-			actor.model.position.y += difference.y / iteration_steps;
-			i++;
-			deferred.update(i);
-		} else {
-			field_b.placeContent(actor);
-			game.scene.removeEventListener("tick", animateMovement);
-			deferred.resolve();
-		}
-	}
-	game.scene.addEventListener("tick", animateMovement);
-
-	return deferred.promise;
-
-
-}
 
 //------------------------------------------------------------------------------
 //----------------------Pathfinding---------------------------------------------
@@ -161,9 +139,9 @@ GameMap.prototype._animateMove = function(actor, field_b, onDone) {
  */
 GameMap.prototype.findPath = function(field_a, field_b) {
 
-	if (field_a.position.x === field_b.position.x && field_a.position.y === field_b.position.y) {
+	if (field_a.position.equals(field_b.position)) {
 		throw new Error("start/end field are the same");
-	}else if(field_b.isBlocked){
+	} else if (field_b.isBlocked) {
 		throw new Error("field blocked, can't get there");
 	}
 
@@ -193,22 +171,24 @@ GameMap.prototype.findPath = function(field_a, field_b) {
 			var node = field.getNode();
 
 			//calculates whether the node already is in one of our lists
-			var already_checked = closed_list.concat(open_list).filter(function(el) {
-				if (node.position.x === el.position.x &&
-					node.position.y === el.position.y) {
+			var isChecked = closed_list.concat(open_list).filter(function(el) {
+				if (el.position.equals(node.position)) {
 					return true;
 				}
 			}).length > 0;
 
-			if (!field.isBlocked && !already_checked) {
+			if (!field.isBlocked && !isChecked) {
 				node.parent = best_element;
 				node.astar_g = node.parent.astar_g +
-					this.getAlignmentCost(node, node.parent) * node.field.fieldType.movementCost;
+					node.position.calcAlignmentCost(node.parent.position) *
+					node.field.fieldType.movementCost;
 
-				node.astar_h = this.getDistance(node, target_node);
+				node.astar_h = node.position.distanceTo(target_node.position);
+
 				node.astar_f = node.astar_g + node.astar_h;
 				open_list.push(node);
 			}
+
 		}.bind(this));
 
 		//sort the open list to have the best first
@@ -255,33 +235,17 @@ GameMap.prototype.neighboursOf = function(field) {
 
 	for (var x = pos_x - 1; x <= pos_x + 1; x++) {
 		for (var y = pos_y - 1; y <= pos_y + 1; y++) {
-			// try {
-			var fld = this.get(x, y); //this.map[x][y];
+
+			var fld = this.get(x, y);
 			if (!!fld && !(pos_x === x && pos_y === y)) {
 				arr.push(fld);
 			}
-			// } catch (e) {
-			//field apparently not existing, so skip it
-			//console.log("one neighbour of", pos_x, ":", pos_y, "does not exist");
-			// }
+
 		}
 	}
 	return arr;
 }
 
-/**
- * if two nodes are aligned horizontally, the cost is 1
- * if they are aligned diagonally, the cost is ~1.41
- *
- * This works with both nodes and fields
- */
-GameMap.prototype.getAlignmentCost = function(field_a, field_b) {
-	if ((field_a.position.x === field_b.position.x) ||
-		(field_a.position.y === field_b.position.y)) {
-		return 1;
-	}
-	return Math.sqrt(2);
-}
 
 /**
  * Calculates a sorted list of waypoints based on the last
@@ -310,6 +274,7 @@ GameMap.prototype.calculateWaypoints = function(node, closed_list) {
 
 		var possible_parents = closed_list.filter(function(node) {
 			for (var i = 0; i < neighbour_fields.length; i++) {
+
 				var neighbour = neighbour_fields[i];
 				if (neighbour.position.x === node.position.x &&
 					neighbour.position.y === node.position.y) {
@@ -331,32 +296,3 @@ GameMap.prototype.calculateWaypoints = function(node, closed_list) {
 
 	return completed_path;
 }
-
-/**
- * Move to general utils
- */
-GameMap.prototype.getDistance = function(field_a, field_b) {
-
-	// airline-distance
-	// var v1 = new THREE.Vector2(field_a.position.x, field_a.position.y);
-	// var v2 = new THREE.Vector2(field_b.position.x, field_b.position.y);
-	// return v1.distanceTo(v2);
-
-
-	//manhattan distance
-	var d_x = Math.abs(field_a.position.x - field_b.position.x);
-	var d_y = Math.abs(field_a.position.y - field_b.position.y);
-	return d_x + d_y
-
-}
-
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-
-/**
- * Static methods and properties of GameMap
- */
-
-
-GameMap.MAX_PATHFIND_ITERATIONS = 1000;

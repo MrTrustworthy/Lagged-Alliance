@@ -15,6 +15,8 @@ var Tree = function() {
 
 }
 
+Tree.prototype = Object.create(GameObject.prototype);
+
 Tree.prototype.generateModel = function() {
 
 	var geometry = new THREE.BoxGeometry(1, 1, 4);
@@ -26,7 +28,7 @@ Tree.prototype.generateModel = function() {
 	model.position.y = 0;
 	model.position.z = 0;
 
-	model.gameObject = this;
+	model.userData = this;
 
 	game.scene.add(model);
 

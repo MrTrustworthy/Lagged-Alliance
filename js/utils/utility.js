@@ -1,6 +1,6 @@
 "use strict";
 
-var GUtil = {
+var qp = {
 
 
 
@@ -14,6 +14,10 @@ var GUtil = {
 
 	getRandomInt: function(min, max) {
 		return Math.floor(Math.random() * (max - min + 1)) + min;
+	},
+
+	chance: function(percentage) {
+		return Math.floor(Math.random() * 100) + 1 <= percentage;
 	}
 
 
