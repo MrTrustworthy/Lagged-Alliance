@@ -4,7 +4,7 @@ var GameWorld = function() {
 
 	this.map = null;
 
-	this.ambientLight = new THREE.AmbientLight(0x909090);
+	this.ambientLight = null;
 
 
 }
@@ -14,27 +14,56 @@ GameWorld.objAmount = 50;
 /**
  * Creates the gameworld
  */
-GameWorld.prototype.createWorld = function() {
+GameWorld.prototype.createWorld = function(blueprint) {
 
-	console.log("Loading up GameWorld", this);
+	if (!!this.map) game.scene.children = [];
+	
+	this.ambientLight = new THREE.AmbientLight(0x909090);
 
 	game.scene.add(this.ambientLight);
 
 	this.map = new GameMap(50);
 
+	if(!!blueprint) this.map.loadMapFromBlueprint(blueprint);
+	else this.map.loadRandomMap();
+	 
+	this.addRandomTrees(60);
+
+	window.game.playerController.playerCharacters.forEach(function(player, index){
+		this.addPlayer(player);
+	}.bind(this));
+}
+
+//------------------------------------------------------------------------------
+//----------------------World population----------------------------------------
+//------------------------------------------------------------------------------
+
+
+GameWorld.prototype.addPlayer = function(player) {
+	try {
+		this.map.getRandomField().placeContent(player);
+	} catch (e) {
+		console.warn("can't place player here", e);
+		this.addPlayer(player)
+	}
+
+}
+
+GameWorld.prototype.addRandomTrees = function(amount) {
+
 	//load random trees
-	for (var i = 0; i < GameWorld.objAmount; i++) {
+	for (var i = 0; i < amount; i++) {
 		var obj = new Tree();
 		try {
-			this.map.get(qp.getRandomInt(0, 50), qp.getRandomInt(0, 50)).placeContent(obj);
+			this.map.getRandomField().placeContent(obj);
 		} catch (e) {
+			game.scene.remove(obj);
 			console.warn("Can't place tree here:", e);
 		}
 	}
 
-	console.log("Finished Map loading", this.map);
-
 }
+
 
 //------------------------------------------------------------------------------
 //----------------------Unit Movement-------------------------------------------

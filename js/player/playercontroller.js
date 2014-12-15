@@ -8,7 +8,6 @@ var PlayerController = function() {
 
 	this.actionBar = null;
 
-
 	this.selected = null;
 }
 
@@ -29,6 +28,10 @@ PlayerController.prototype.loadController = function() {
 	this.inputHandler = new InputHandler();
 
 	this.actionBar = new ActionBar();
+
+	for(var i = 0; i < 4; i++){
+		this.addPlayer();
+	}
 }
 
 
@@ -36,26 +39,23 @@ PlayerController.prototype.loadController = function() {
  * adds a random playeractor to the game
  */
 PlayerController.prototype.addPlayer = function() {
-
-	var player = new PlayerActor("one");
-	game.world.map.getRandomField().placeContent(player);
+	var player = new PlayerActor(Math.random().toString(36).substring(4));
 	this.playerCharacters.push(player);
 }
+
 
 /**
  * sets a given item as "selected"
  */
 PlayerController.prototype.select = function(element) {
-
 	if (element) {
-
 		this.selected = element;
 		this.actionBar.select(element.name);
 	} else {
 		throw new Error("No item to set selected");
 	}
-
 }
+
 
 /**
  * Removes the current selection
@@ -64,6 +64,7 @@ PlayerController.prototype.deselect = function() {
 	this.selected = null;
 	this.actionBar.select("Nothing");
 }
+
 
 /**
  * Takes the given input and updates the player according to it
@@ -193,8 +194,6 @@ PlayerController.prototype._getObjectsOnMousePos = function(position) {
 	ray.intersectObjects(game.scene.children).forEach(function(element, index) {
 		selectedElements.push(element.object.userData);
 	});
-
-
 
 	// return the results
 	return selectedElements

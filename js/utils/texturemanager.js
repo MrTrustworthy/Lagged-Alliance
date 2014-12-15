@@ -7,10 +7,10 @@ var TextureManager = function() {
 	this.path = "./media/textures/";
 
 	this._textures = {
-		water: FieldTypes.water.name + ".jpg",
-		dirt: FieldTypes.dirt.name + ".jpg",
-		stone: FieldTypes.stone.name + ".png",
-		grass: FieldTypes.grass.name + ".jpg",
+		water: "water.jpg",
+		dirt: "dirt.jpg",
+		stone: "stone.png",
+		grass: "grass.jpg",
 		tree: "tree.jpg",
 		player: "player.jpg"
 	};

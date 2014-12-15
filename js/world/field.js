@@ -22,6 +22,7 @@ Field.prototype = Object.create(GameObject.prototype);
 Field.prototype.placeContent = function(content) {
 
 	if (this.isBlocked && this.occupant) {
+		console.warn("Already have something on this field");
 		//throw new Error("Already have something on this field. remove this first!")
 		return;
 	}

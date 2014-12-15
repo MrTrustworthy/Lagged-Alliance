@@ -8,7 +8,7 @@ var ActionBar = function() {
 
 	this.selectedTab = new SelectedTab(this);
 
-	this.commandTab = new CommandTab(this);
+	this.saveTab = new SaveTab(this);
 
 
 
@@ -40,7 +40,7 @@ ActionBar.prototype._loadDom = function() {
  * ------------------------------------------------
  */
 
-var CommandTab = function(actionBar) {
+var SaveTab = function(actionBar) {
 
 	this.parent = actionBar;
 
@@ -48,18 +48,53 @@ var CommandTab = function(actionBar) {
 
 }
 
-CommandTab.prototype._loadDom = function() {
+SaveTab.prototype._loadDom = function() {
 
 	var _dom = document.createElement("div");
 	_dom.style.width = "250px";
 	_dom.style.height = "100%";
 	_dom.style.background = "#990099";
 	_dom.style.color = "white";
-	_dom.style.overflow = "hidden"
+	_dom.style.overflow = "scroll"
 	_dom.style.display = "inline-block";
 
-	_dom.innerHTML = "Command:";
+	var loadContent = function() {
 
+		_dom.innerHTML = "";
+
+		var btn = document.createElement("BUTTON");
+		btn.innerHTML = "Save current Map";
+
+		btn.onclick = function(evt) {
+			console.log("Saving map");
+			window.game.database.saveCurrentMap().then(function() {
+
+				loadContent();
+			});
+		}
+		_dom.appendChild(btn);
+
+
+		game.database.getMapList().then(function(mapList) {
+
+			mapList.forEach(function(map) {
+
+				var btn = document.createElement("BUTTON");
+				btn.innerHTML = "Load: " + map.name;
+
+				btn.onclick = function(evt) {
+					console.log("loading new map");
+					game.world.createWorld(map);
+				}
+
+				_dom.appendChild(btn);
+
+			});
+
+		});
+
+	}
+	loadContent();
 	this.parent._dom.appendChild(_dom);
 	return _dom;
 }
@@ -96,11 +131,11 @@ SelectedTab.prototype._loadDom = function() {
 
 SelectedTab.prototype.setSelected = function(itemName) {
 
-	this._dom.innerHTML = "Selected:<br>" + itemName ? itemName : "Nothing";
-}
-/**
- * -------------------------------------------------------------
- */
+		this._dom.innerHTML = "Selected:<br>" + itemName ? itemName : "Nothing";
+	}
+	/**
+	 * -------------------------------------------------------------
+	 */
 
 var ConsoleTab = function(actionBar) {
 

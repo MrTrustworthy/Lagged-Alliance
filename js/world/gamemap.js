@@ -3,20 +3,13 @@
 /**
  * The gamemap represents the fields/floor of the game in a 2D-array
  */
-var GameMap = function(sizeX, sizeY, seed) {
+var GameMap = function(sizeX, sizeY) {
 
 	this.sizeX = sizeX || 8;
 	this.sizeY = sizeY || this.sizeX;
 
-	var time = Date.now();
+	this._map = null;
 
-	this.seed = seed || this.generateSeed();
-
-	this.map = this._loadMap(this.sizeX, this.sizeY, this.seed);
-
-	this._improve(4);
-
-	console.log("generating world took", (Date.now() - time)/1000, "seconds");
 }
 
 GameMap.MAX_PATHFIND_ITERATIONS = 1000;
@@ -24,7 +17,7 @@ GameMap.MAX_PATHFIND_ITERATIONS = 1000;
 // type-error-safe version of array[x][y]
 GameMap.prototype.get = function(x, y) {
 	try {
-		return this.map[x][y];
+		return this._map[x][y];
 	} catch (e) {
 		return null;
 	}
@@ -36,45 +29,57 @@ GameMap.prototype.getRandomField = function() {
 		qp.getRandomInt(0, this.sizeX - 1),
 		qp.getRandomInt(0, this.sizeY - 1)
 	);
-
 }
 
-GameMap.prototype.generateSeed = function() {
-	var seed = []
-	for (var i = 0; i < this.sizeX * this.sizeY; i++) {
-		seed.push(FieldTypes.randomID());
+// Iterates over every field of the map
+GameMap.prototype.forEach = function(callback_func) {
+
+	for (var x = 0; x < this._map.length; x++) {
+		for (var y = 0; y < this._map[0].length; y++) {
+			callback_func(this._map[x][y], x, y);
+		}
 	}
-	return seed;
 }
+
 
 /**
  * -----------------------------------------------------------------------------------
- * -------------------------------------------private---------------------------------
+ * ---------------------------------------Map Loading---------------------------------
  * -----------------------------------------------------------------------------------
  */
+GameMap.prototype.loadMapFromBlueprint = function(blueprint) {
+
+	console.log("Loading map", blueprint.name);
+
+	var arr = [];
+	for (var x = 0; x < this.sizeX; x++) {
+		arr[x] = [];
+	}
+
+	blueprint.fields.forEach(function(field) {
+		var x = field.position.x;
+		var y = field.position.y;
+		arr[x][y] = new Field(x, y, field.type);
+	});
+
+	this._map = arr;
+}
 
 
 /**
  * loads a map with the given size
  */
-GameMap.prototype._loadMap = function(sizeX, sizeY, seed) {
+GameMap.prototype.loadRandomMap = function() {
 	var arr = [];
-	for (var x = 0; x < sizeX; x++) {
+	for (var x = 0; x < this.sizeX; x++) {
 		arr[x] = [];
-		for (var y = 0; y < sizeY; y++) {
-			arr[x][y] = new Field(x, y, FieldTypes.byID(seed.shift()));
+		for (var y = 0; y < this.sizeY; y++) {
+			arr[x][y] = new Field(x, y, FieldTypes.random());
 		}
 	}
+	this._map = arr;
 
-	arr.forEachField = function(callback_func) {
-		for (var x = 0; x < arr.length; x++) {
-			for (var y = 0; y < arr[0].length; y++) {
-				callback_func(arr[x][y], x, y);
-			}
-		}
-	}.bind(this);
-
-	return arr;
+	this._improve(4);
 }
 
 
@@ -85,7 +90,7 @@ GameMap.prototype._improve = function(amount) {
 
 
 
-		this.map.forEachField(function(field, x, y) {
+		this.forEach(function(field, x, y) {
 
 			var types = FieldTypes;
 
@@ -115,12 +120,11 @@ GameMap.prototype._improve = function(amount) {
 				default:
 					field.fieldTypeRep = types.water;
 					break;
-
 			}
 
 		}.bind(this));
 
-		this.map.forEachField(function(field) {
+		this.forEach(function(field) {
 			field.fieldType = field.fieldTypeRep;
 			field.model = field.generateModel();
 		});
@@ -276,8 +280,7 @@ GameMap.prototype.calculateWaypoints = function(node, closed_list) {
 			for (var i = 0; i < neighbour_fields.length; i++) {
 
 				var neighbour = neighbour_fields[i];
-				if (neighbour.position.x === node.position.x &&
-					neighbour.position.y === node.position.y) {
+				if (neighbour.position.equals(node.position)) {
 					return true;
 				}
 			}
