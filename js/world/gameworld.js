@@ -16,50 +16,50 @@ GameWorld.objAmount = 50;
  */
 GameWorld.prototype.createWorld = function(blueprint) {
 
+	// if there has been a map loaded previously, 
+	// remove everything from the scene before loading
 	if (!!this.map) game.scene.children = [];
-	
+
 	this.ambientLight = new THREE.AmbientLight(0x909090);
 
 	game.scene.add(this.ambientLight);
 
 	this.map = new GameMap(50);
 
-	if(!!blueprint) this.map.loadMapFromBlueprint(blueprint);
+	if (!!blueprint) this.map.loadMapFromBlueprint(blueprint);
 	else this.map.loadRandomMap();
-	 
-	this.addRandomTrees(60);
 
-	window.game.playerController.playerCharacters.forEach(function(player, index){
-		this.addPlayer(player);
-	}.bind(this));
 }
 
 //------------------------------------------------------------------------------
 //----------------------World population----------------------------------------
 //------------------------------------------------------------------------------
 
+/**
+ * Loads the actors from the given controllers into the game
+ */
+GameWorld.prototype.loadActors = function(playerController, aiController) {
 
-GameWorld.prototype.addPlayer = function(player) {
-	try {
-		this.map.getRandomField().placeContent(player);
-	} catch (e) {
-		console.warn("can't place player here", e);
-		this.addPlayer(player)
-	}
+	var objs = playerController.characters.concat(aiController.characters);
+
+	objs.forEach(function(actor) {
+		actor.placeOn(this.map.getFreeField(), true);
+	}.bind(this));
 
 }
 
-GameWorld.prototype.addRandomTrees = function(amount) {
 
-	//load random trees
+
+
+GameWorld.prototype.loadObjects = function(amount) {
+
 	for (var i = 0; i < amount; i++) {
 		var obj = new Tree();
-		try {
-			this.map.getRandomField().placeContent(obj);
-		} catch (e) {
-			game.scene.remove(obj);
-			console.warn("Can't place tree here:", e);
-		}
+		var fld = this.map.getFreeField();
+
+		fld.placeContent(obj);
+		obj.model.position.x = fld.model.position.x;
+		obj.model.position.y = fld.model.position.y;
 	}
 
 }
@@ -78,26 +78,29 @@ GameWorld.prototype.moveTo = function(actor, target) {
 	try {
 		path = this.map.findPath(actor.placedOn, target);
 	} catch (e) {
-		if (!supressWarning) console.error("no path could be found");
+		console.warn("no path could be found");
 		return;
 	}
 
-	if (path.length > 0) {
+	if (path.length === 0) return;
 
-		this._moveAlongPath(
-			actor,
-			path,
-			//update
-			function(actor, field) {
+	this._moveAlongPath(
+		actor,
+		path,
+		//ondone
+		function() {
+			console.log("end reached");
+		},
+		//update needs to return true or we cancel it.
+		function(actor, field) {
 
-				console.log("field reached", field.fieldType);
-				return !(field.fieldType.name === "water");
-			},
-			//ondone
-			function() {
-				console.log("end reached");
-			});
-	}
+			console.log("field reached", field.fieldType);
+			return !(field.fieldType.name === "water");
+		},
+		function() {
+			console.log("path aborted");
+		});
+
 
 }
 
@@ -108,7 +111,7 @@ GameWorld.prototype.moveTo = function(actor, target) {
  * calls onUpdate after each step and only continues execution if onUpdate
  * returns true. calls onDone at the end.
  */
-GameWorld.prototype._moveAlongPath = function(actor, path, onUpdate, onDone) {
+GameWorld.prototype._moveAlongPath = function(actor, path, onDone, onUpdate, onCancel) {
 
 
 	onUpdate = onUpdate instanceof Function ? onUpdate : function() {
@@ -134,50 +137,17 @@ GameWorld.prototype._moveAlongPath = function(actor, path, onUpdate, onDone) {
 			// call the animation function.
 			// if the onUpdate function that gets executed afterwards
 			// returns true, we go on
-			this._animateMove(actor, end_field, function() {
+			actor.moveToField(end_field).then(function() {
+
 				var canGoOn = onUpdate(actor, end_field);
-				if (canGoOn) move_to_next()
+				if (canGoOn) move_to_next();
+				else onCancel();
+
 			});
-
-
 		}
 
 	}.bind(this);
 
 	move_to_next();
-
-}
-
-/**
- * Moves an actor towards a certain point over time. gets called by
- * _moveAlongPath to do the move animation
- */
-GameWorld.prototype._animateMove = function(actor, field_b, onDone) {
-
-
-	//Those two need to be elsewhere
-	var speed = 0.3;
-	var delay = 20;
-
-	var difference = new THREE.Vector3(0, 0, 0).subVectors(field_b.model.position, actor.model.position);
-
-	var iteration_steps = Math.floor(difference.length()) / speed;
-	var i = 0;
-
-	var animateMovement = function() {
-
-		if (i < iteration_steps) {
-			actor.model.position.x += difference.x / iteration_steps;
-			actor.model.position.y += difference.y / iteration_steps;
-			i++;
-
-		} else {
-			field_b.placeContent(actor);
-			game.scene.removeEventListener("tick", animateMovement);
-			onDone();
-		}
-	}.bind(this);
-
-	game.scene.addEventListener("tick", animateMovement);
 
 }

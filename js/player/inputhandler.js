@@ -59,17 +59,17 @@ InputHandler.prototype.reset = function() {
 InputHandler.prototype.loadConnections = function() {
 
 	// prevent default right/left clicks
-	window.oncontextmenu = function() {
+	game.renderer.domElement.oncontextmenu = function() {
 		return false;
 	}.bind(this);
-	window.onclick = function(evt) {
+	game.renderer.domElement.onclick = function(evt) {
 		return false;
 	}.bind(this);
 
 	/**
 	 * real listeners start here
 	 */
-	window.onmousewheel = function(evt) {
+	game.renderer.domElement.onmousewheel = function(evt) {
 		if (evt.wheelDelta > 0) {
 			this.scroll += 1;
 		} else if (evt.wheelDelta < 0) {
@@ -78,7 +78,7 @@ InputHandler.prototype.loadConnections = function() {
 
 	}.bind(this);
 
-	window.onmousedown = function(evt) {
+	game.renderer.domElement.onmousedown = function(evt) {
 
 		if (evt.button === this.buttons.LEFT) {
 			this.currentState = this.states.DRAGGING;
@@ -94,7 +94,7 @@ InputHandler.prototype.loadConnections = function() {
 
 
 
-	window.onmouseup = function(evt) {
+	game.renderer.domElement.onmouseup = function(evt) {
 
 		if (evt.button === this.buttons.LEFT) {
 
@@ -118,7 +118,7 @@ InputHandler.prototype.loadConnections = function() {
 	}.bind(this);
 
 
-	window.onmousemove = function(evt) {
+	game.renderer.domElement.onmousemove = function(evt) {
 		this.currMousePos = new Position(evt.x, evt.y);
 	}.bind(this);
 

@@ -19,14 +19,14 @@ Tree.prototype = Object.create(GameObject.prototype);
 
 Tree.prototype.generateModel = function() {
 
-	var geometry = new THREE.BoxGeometry(1, 1, 4);
+	var geometry = new THREE.BoxGeometry(2, 2, 14);
 	var material = game.textureManager.getTexture("tree");
 
 	var model = new THREE.Mesh(geometry, material);
 
 	model.position.x = 0;
 	model.position.y = 0;
-	model.position.z = 0;
+	model.position.z = 7;
 
 	model.userData = this;
 

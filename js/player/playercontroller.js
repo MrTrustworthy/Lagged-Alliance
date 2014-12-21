@@ -1,6 +1,10 @@
+/**
+ * The player controller gets initialized and filled with players
+ * BEFORE the world is created!
+ */
 var PlayerController = function() {
 
-	this.playerCharacters = [];
+	this.characters = [];
 
 	this.camera = null;
 
@@ -20,40 +24,49 @@ PlayerController.prototype.loadController = function() {
 
 
 	this.camera = new THREE.PerspectiveCamera(75, game.WIDTH / game.HEIGHT, 0.1, 1000);
-	this.camera.position.x = 70;
-	this.camera.position.y = 0;
-	this.camera.position.z = 70;
-	this.camera.rotateX(1 / 3);
+	this.camera.position.x = 150;
+	this.camera.position.y = 150;
+	this.camera.position.z = 40;
+	this.camera.rotateX(1 / 2);
 
 	this.inputHandler = new InputHandler();
 
 	this.actionBar = new ActionBar();
-
-	for(var i = 0; i < 4; i++){
-		this.addPlayer();
-	}
 }
 
 
 /**
  * adds a random playeractor to the game
  */
-PlayerController.prototype.addPlayer = function() {
-	var player = new PlayerActor(Math.random().toString(36).substring(4));
-	this.playerCharacters.push(player);
+PlayerController.prototype.addActor = function(player) {
+
+	this.characters.push(player);
 }
 
+/**
+ * checks whether the passed actor is registered here
+ */
+PlayerController.prototype.isMember = function(actor) {
+
+	var isMember = false;
+	this.characters.forEach(function(element, index) {
+		if (element.name === actor.name) isMember = true;
+	});
+
+	return isMember;
+}
 
 /**
  * sets a given item as "selected"
  */
-PlayerController.prototype.select = function(element) {
-	if (element) {
-		this.selected = element;
-		this.actionBar.select(element.name);
-	} else {
-		throw new Error("No item to set selected");
-	}
+PlayerController.prototype.select = function(actor) {
+
+	if (!actor) throw new Error("No item to set selected");
+
+	this.selected = actor;
+	var info = this.isMember(actor) ? actor.name : "Enemy " + actor.name;
+	this.actionBar.select(info);
+
 }
 
 
@@ -65,6 +78,9 @@ PlayerController.prototype.deselect = function() {
 	this.actionBar.select("Nothing");
 }
 
+PlayerController.prototype.startTurn = function(){
+	return;
+}
 
 /**
  * Takes the given input and updates the player according to it
@@ -78,7 +94,7 @@ PlayerController.prototype.update = function() {
 		var scrollFunc = function() {
 			if (i === 15) {
 				game.scene.removeEventListener("tick", scrollFunc);
-			}			
+			}
 			this.camera.position.z -= input.scroll;
 			i++;
 		}.bind(this);
@@ -87,8 +103,9 @@ PlayerController.prototype.update = function() {
 
 	switch (input.state) {
 
+		// when nothing was clicked and the mouse is just moving around
 		case input.states.DEFAULT:
-			if (!!this.selected) {
+			if (!!this.selected && this.isMember(this.selected)) {
 				var objects = this._getObjectsOnMousePos(input.currMousePos);
 				var field = this._checkForField(objects);
 				if (!!field) {
@@ -115,18 +132,70 @@ PlayerController.prototype.update = function() {
 			break;
 
 		case input.states.CLICKED:
+
 			var objects = this._getObjectsOnMousePos(input.currMousePos);
 			var actor = this._checkForActors(objects);
+			var field = this._checkForField(objects);
 
-			if (!!actor) {
-				this.select(actor);
+			//this is where we actually do something
+
+			//if we don't have anything selected right now
+			if (!this.selected) {
+
+				if (!!actor) this.select(actor);
+				else this.deselect();
+
+				// if we have something selected already,
+				// we need to check if that actor belongs to us 
 			} else if (!!this.selected) {
-				var field = this._checkForField(objects);
-				if (!!field) {
-					game.world.moveTo(this.selected, field);
+
+				//if the currently selected item belongs to us
+				if (this.isMember(this.selected)) {
+
+					// if we clicked on an actor
+					if (!!actor && actor.isAlive) {
+
+						//ATTACK!
+						if (!this.isMember(actor)) {
+							this.selected.attack(actor);
+						} else {
+							this.select(actor);
+						}
+
+						//if we clicked just on a field
+					} else if (!!field) {
+						game.world.moveTo(this.selected, field);
+						this.deselect();
+					} else {
+
+					}
+
+
+
+				} else {
 					this.deselect();
 				}
+
+
 			}
+
+
+
+			// if (!!actor && this.isMember(actor)) {
+			// 	this.select(actor);
+
+			// 	// here is where we actually move/attack
+			// } else if (!!this.selected) {
+
+
+
+			// 	if (!!field) {
+			// 		game.world.moveTo(this.selected, field);
+			// 		this.deselect();
+			// 	}
+
+
+			// }
 			break;
 	}
 
@@ -141,15 +210,18 @@ PlayerController.prototype._checkForActors = function(gameObjects) {
 
 	actors = [];
 	gameObjects.forEach(function(element, index) {
-		if (element.type === "actor") {
+
+		if (element instanceof PlayerActor) {
+
 			actors.push(element);
+
 		} else if (element instanceof Field &&
 			!!element.occupant &&
 			element.occupant instanceof PlayerActor) {
 
 			actors.push(element.occupant);
 		}
-	});
+	}.bind(this));
 
 	return actors[0];
 }

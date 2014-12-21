@@ -24,6 +24,11 @@ Position.prototype.diff = function(other) {
 	);
 }
 
+Position.prototype.length = function(){
+
+	return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
+}
+
 Position.prototype.clone = function() {
 	return new Position(this.x, this.y);
 }

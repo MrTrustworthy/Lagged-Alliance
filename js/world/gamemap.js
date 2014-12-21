@@ -31,6 +31,15 @@ GameMap.prototype.getRandomField = function() {
 	);
 }
 
+GameMap.prototype.getFreeField = function() {
+
+	var fld = this.getRandomField();
+
+	if (!fld.isBlocked && !fld.occupant) return fld;
+
+	else return this.getFreeField();
+}
+
 // Iterates over every field of the map
 GameMap.prototype.forEach = function(callback_func) {
 
@@ -55,13 +64,17 @@ GameMap.prototype.loadMapFromBlueprint = function(blueprint) {
 	for (var x = 0; x < this.sizeX; x++) {
 		arr[x] = [];
 	}
-
+	var d = Date.now();
+	console.profile();
 	blueprint.fields.forEach(function(field) {
 		var x = field.position.x;
 		var y = field.position.y;
 		arr[x][y] = new Field(x, y, field.type);
+
 	});
 
+	console.profileEnd();
+	console.log("Loaded map in ", (Date.now() - d) / 1000, "Seconds");
 	this._map = arr;
 }
 

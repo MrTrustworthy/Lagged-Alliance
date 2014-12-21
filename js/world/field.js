@@ -17,43 +17,26 @@ var Field = function(x, y, fieldType) {
 Field.prototype = Object.create(GameObject.prototype);
 
 /**
- * Adds content to a field and adjusts the position
+ * Adds content to a field and adjusts the position.
+ * Should only be called from the actors/objects and not directly
  */
 Field.prototype.placeContent = function(content) {
 
-	if (this.isBlocked && this.occupant) {
-		console.warn("Already have something on this field");
-		//throw new Error("Already have something on this field. remove this first!")
+	if (this.isBlocked || !!this.occupant) {
+		throw new Error("Already have something on this field");
 		return;
 	}
-
 	this.occupant = content;
-	this.occupant.placedOn = this;
 	this.isBlocked = true;
-
-	this.occupant.model.position.x = this.model.position.x;
-	this.occupant.model.position.y = this.model.position.y;
-	this.occupant.model.position.z = this.model.position.z + 2;
-
-
 }
 
 /**
  * removes the current content from a field
  */
-Field.prototype.removeContent = function(supressWarnings) {
-	if (!this.occupant) {
-		console.warn("No Occupant on Field to remove");
-		return null;
-	}
-	var tempSave = this.occupant;
-
-	this.occupant.placedOn = null;
+Field.prototype.removeContent = function() {
+	if (!this.occupant) console.warn("No Occupant on Field to remove");
 	this.occupant = null;
-
 	this.isBlocked = false;
-
-	return tempSave;
 }
 
 /**
@@ -68,13 +51,15 @@ Field.prototype.generateModel = function() {
 		this.model = null;
 	}
 
-	var geometry = new THREE.BoxGeometry(
-		Field.FIELD_SIZE,
-		Field.FIELD_SIZE,
-		Field.FIELD_HEIGHT
-	);
 
-	var material = game.textureManager.getTexture(this.fieldType.name); //.clone();
+	var geometry = new THREE.PlaneGeometry(Field.FIELD_SIZE, Field.FIELD_SIZE, 1, 1);
+
+	var material;
+	if (this.fieldType.name !== "water") {
+		material = game.textureManager.getTexture(this.fieldType.name).clone();
+	} else {
+		material = this.getWaterShader();
+	}
 
 	var model = new THREE.Mesh(geometry, material);
 
@@ -82,13 +67,11 @@ Field.prototype.generateModel = function() {
 	model.position.y = this.position.y * Field.FIELD_SIZE;
 	model.position.z = 0;
 
-
-	model.matrixAutoUpdate = false;
-
 	model.userData = this;
 
 	game.scene.add(model);
 
+	model.matrixAutoUpdate = false;
 	model.updateMatrix();
 
 	return model;
@@ -100,10 +83,12 @@ Field.prototype.generateModel = function() {
  */
 Field.prototype.blink = function(time) {
 
-	this.model.material = game.textureManager.getTexture(this.fieldType.name + "_hl");
+	this.model.material.opacity = 0.5;
+	this.model.material.transparent = true;
 
 	setTimeout(function() {
-		this.model.material = game.textureManager.getTexture(this.fieldType.name);
+		this.model.material.opacity = 1;
+		this.model.material.transparent = false;
 	}.bind(this), time ? time : 1000);
 }
 
@@ -122,6 +107,54 @@ Field.prototype.getNode = function() {
  */
 Field.prototype.equals = function(otherField) {
 	return this.position.equals(otherField.position);
+}
+
+/**
+* generates the shader material for water
+*/
+Field.prototype.getWaterShader = function(px, py) {
+
+
+
+	var uniforms = {
+		iGlobalTime: {
+			type: "f",
+			value: 0
+		}
+	}
+
+	var attributes = {
+		uvv: {
+			type: "v2",
+			value: []
+		}
+	}
+
+	var px = this.position.x * Field.FIELD_SIZE;
+	var py = this.position.y * Field.FIELD_SIZE;
+
+	attributes.uvv.value.push(new THREE.Vector2(px, py));
+	attributes.uvv.value.push(new THREE.Vector2(px, py + 1));
+	attributes.uvv.value.push(new THREE.Vector2(px + 1, py));
+	attributes.uvv.value.push(new THREE.Vector2(px + 1, py + 1));
+
+	var frameCount = 0;
+	var timePassingFunc = function() {
+		uniforms.iGlobalTime.value = frameCount;
+		frameCount += 0.01;
+	}
+	game.scene.addEventListener("tick", timePassingFunc);
+
+
+	var vShader = document.getElementById("vShader").text
+	var fShader = document.getElementById("fShader").text
+
+	return new THREE.ShaderMaterial({
+		uniforms: uniforms,
+		attributes: attributes,
+		vertexShader: vShader,
+		fragmentShader: fShader
+	});
 }
 
 
@@ -169,8 +202,8 @@ var FieldTypes = {
 			}
 		}
 	},
-	randomID: function(){
-		return Math.floor(Math.random()*4+1)-1;
+	randomID: function() {
+		return Math.floor(Math.random() * 4 + 1) - 1;
 	},
 	random: function() {
 		var types = [];
