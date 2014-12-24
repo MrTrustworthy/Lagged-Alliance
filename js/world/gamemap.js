@@ -3,19 +3,71 @@
 /**
  * The gamemap represents the fields/floor of the game in a 2D-array
  */
-var GameMap = function(sizeX, sizeY) {
+var GameMap = function(size) {
 
-	this.sizeX = sizeX || 8;
-	this.sizeY = sizeY || this.sizeX;
+	this.sizeX = size || 8;
+	this.sizeY = this.sizeX;
 
-	this._map = null;
-
+	this._map = [];
+	for (var x = 0; x < this.sizeX; x++) {
+		this._map[x] = [];
+		this._map[x].length = this.sizeY;
+	}
 }
 
+//------------------------------------------------------------------------------
+//---------------------------General Stuff--------------------------------------
+//------------------------------------------------------------------------------
+
+GameMap.serialize = function(gameMap) {
+
+	var array = [];
+	gameMap.forEach(function(field) {
+		array.push(Field.serialize(field));
+	});
+
+	return {
+		fields: array
+	}
+}
+
+GameMap.deserialize = function(save) {
+	var size = Math.sqrt(save.fields.length);
+	var gameMap = new GameMap(size);
+	save.fields.forEach(function(field){
+		gameMap._map[field.position.x][field.position.y] = Field.deserialize(field);
+	});
+
+	return gameMap;
+}
+
+GameMap.prototype.show = function(){
+	this.forEach(function(field){
+		field.show();
+	});
+}
+
+GameMap.prototype.hide = function(){
+	this.forEach(function(field){
+		field.hide();
+	});
+}
+
+
+//------------------------------------------------------------------------------
+//---------------------------Basic Stuff----------------------------------------
+//------------------------------------------------------------------------------
 GameMap.MAX_PATHFIND_ITERATIONS = 1000;
 
 // type-error-safe version of array[x][y]
 GameMap.prototype.get = function(x, y) {
+	//transform position into x/y if needed
+	if(arguments.length === 1){
+		var pos = x;
+		x = pos.x;
+		y = pos.y;
+	}
+
 	try {
 		return this._map[x][y];
 	} catch (e) {
@@ -51,32 +103,14 @@ GameMap.prototype.forEach = function(callback_func) {
 }
 
 
+
+
 /**
  * -----------------------------------------------------------------------------------
- * ---------------------------------------Map Loading---------------------------------
+ * ---------------------------Random Map Generation-----------------------------------
  * -----------------------------------------------------------------------------------
  */
-GameMap.prototype.loadMapFromBlueprint = function(blueprint) {
 
-	console.log("Loading map", blueprint.name);
-
-	var arr = [];
-	for (var x = 0; x < this.sizeX; x++) {
-		arr[x] = [];
-	}
-	var d = Date.now();
-	console.profile();
-	blueprint.fields.forEach(function(field) {
-		var x = field.position.x;
-		var y = field.position.y;
-		arr[x][y] = new Field(x, y, field.type);
-
-	});
-
-	console.profileEnd();
-	console.log("Loaded map in ", (Date.now() - d) / 1000, "Seconds");
-	this._map = arr;
-}
 
 
 /**
@@ -87,15 +121,18 @@ GameMap.prototype.loadRandomMap = function() {
 	for (var x = 0; x < this.sizeX; x++) {
 		arr[x] = [];
 		for (var y = 0; y < this.sizeY; y++) {
-			arr[x][y] = new Field(x, y, FieldTypes.random());
+			arr[x][y] = new Field(x, y, Field.FieldTypeGenerator.random());
 		}
 	}
 	this._map = arr;
 
-	this._improve(4);
+	this._improve(2 /* 4 */);
 }
 
-
+/**
+ * Kinda hacky function to iterate over a generated map
+ * and make it seem more procedural
+ */
 GameMap.prototype._improve = function(amount) {
 	amount = amount || 1;
 
@@ -105,7 +142,7 @@ GameMap.prototype._improve = function(amount) {
 
 		this.forEach(function(field, x, y) {
 
-			var types = FieldTypes;
+			var types = Field.FieldTypeGenerator.getAll();
 
 			var neighbours = this.neighboursOf(field);
 
@@ -139,7 +176,7 @@ GameMap.prototype._improve = function(amount) {
 
 		this.forEach(function(field) {
 			field.fieldType = field.fieldTypeRep;
-			field.model = field.generateModel();
+			field.generateModel();
 		});
 
 	}

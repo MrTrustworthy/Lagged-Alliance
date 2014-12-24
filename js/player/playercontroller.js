@@ -4,7 +4,7 @@
  */
 var PlayerController = function() {
 
-	this.characters = [];
+	this.actors = [];
 
 	this.camera = null;
 
@@ -15,7 +15,6 @@ var PlayerController = function() {
 	this.selected = null;
 }
 
-
 /**
  * Loads the camera, the input handler and the action bar
  * which is all used to represent a players intention
@@ -23,38 +22,56 @@ var PlayerController = function() {
 PlayerController.prototype.loadController = function() {
 
 
-	this.camera = new THREE.PerspectiveCamera(75, game.WIDTH / game.HEIGHT, 0.1, 1000);
-	this.camera.position.x = 150;
-	this.camera.position.y = 150;
-	this.camera.position.z = 40;
-	this.camera.rotateX(1 / 2);
+	this.camera = new GameCamera();
 
 	this.inputHandler = new InputHandler();
 
 	this.actionBar = new ActionBar();
 }
 
-
 /**
- * adds a random playeractor to the game
+ * adds a playeractor to this instance
  */
-PlayerController.prototype.addActor = function(player) {
-
-	this.characters.push(player);
+PlayerController.prototype.addActor = function(actor) {
+	this.actors.push(actor);
 }
 
 /**
- * checks whether the passed actor is registered here
- */
-PlayerController.prototype.isMember = function(actor) {
+* removes all actors for cleanup purposes
+*/
+PlayerController.prototype.removeActors = function() {
+	this.actors = [];
+}
 
-	var isMember = false;
-	this.characters.forEach(function(element, index) {
-		if (element.name === actor.name) isMember = true;
+/**
+ * returns all actors in a list
+ */
+PlayerController.prototype.getActors = function() {
+	return this.actors;
+}
+
+/**
+ * Function that gets executed at the start of a turn
+ */
+PlayerController.prototype.startTurn = function() {
+
+	//discard the input that happened in absence
+	this.inputHandler.getInput();
+
+	this.camera.loadPosition("playerController");
+}
+
+/**
+ * Function that gets executed at the start of a turn
+ */
+PlayerController.prototype.endTurn = function() {
+	this.actors.forEach(function(character) {
+		character.AP.fill();
 	});
-
-	return isMember;
+	this.camera.savePosition("playerController");
 }
+
+
 
 /**
  * sets a given item as "selected"
@@ -64,8 +81,8 @@ PlayerController.prototype.select = function(actor) {
 	if (!actor) throw new Error("No item to set selected");
 
 	this.selected = actor;
-	var info = this.isMember(actor) ? actor.name : "Enemy " + actor.name;
-	this.actionBar.select(info);
+	//var info = (this.isMember(actor) ? actor.name : "Enemy " + actor.name) + " - " + actor.actionPoints.toString();
+	this.actionBar.select(actor);
 
 }
 
@@ -75,12 +92,9 @@ PlayerController.prototype.select = function(actor) {
  */
 PlayerController.prototype.deselect = function() {
 	this.selected = null;
-	this.actionBar.select("Nothing");
+	this.actionBar.select(null);
 }
 
-PlayerController.prototype.startTurn = function(){
-	return;
-}
 
 /**
  * Takes the given input and updates the player according to it
@@ -95,7 +109,7 @@ PlayerController.prototype.update = function() {
 			if (i === 15) {
 				game.scene.removeEventListener("tick", scrollFunc);
 			}
-			this.camera.position.z -= input.scroll;
+			this.camera.move(0, 0, -input.scroll / 2);
 			i++;
 		}.bind(this);
 		game.scene.addEventListener("tick", scrollFunc);
@@ -127,8 +141,7 @@ PlayerController.prototype.update = function() {
 
 		case input.states.DRAGGING:
 			var difference = input.currMousePos.diff(input.lastMousePos);
-			this.camera.position.x += difference.x / 10;
-			this.camera.position.y -= difference.y / 10;
+			this.camera.move(difference.x / 10, -difference.y / 10, 0);
 			break;
 
 		case input.states.CLICKED:
@@ -170,38 +183,30 @@ PlayerController.prototype.update = function() {
 
 					}
 
-
-
 				} else {
 					this.deselect();
 				}
-
-
 			}
-
-
-
-			// if (!!actor && this.isMember(actor)) {
-			// 	this.select(actor);
-
-			// 	// here is where we actually move/attack
-			// } else if (!!this.selected) {
-
-
-
-			// 	if (!!field) {
-			// 		game.world.moveTo(this.selected, field);
-			// 		this.deselect();
-			// 	}
-
-
-			// }
 			break;
 	}
 
 	this.inputHandler.reset();
 
 }
+
+/**
+ * checks whether the passed actor is registered here
+ */
+PlayerController.prototype.isMember = function(actor) {
+
+	var isMember = false;
+	this.actors.forEach(function(element, index) {
+		if (element.name === actor.name) isMember = true;
+	});
+
+	return isMember;
+}
+
 
 /**
  * checks if an actor can be found in the given gameobjects and returns it
@@ -250,11 +255,11 @@ PlayerController.prototype._getObjectsOnMousePos = function(position) {
 	var magicVector = new THREE.Vector3(
 		(position.x / game.WIDTH) * 2 - 1, -(position.y / game.HEIGHT) * 2 + 1,
 		0.5
-	).unproject(this.camera).sub(this.camera.position).normalize();
+	).unproject(this.camera.getCamera()).sub(this.camera.getPosition()).normalize();
 
 
 	var ray = new THREE.Raycaster(
-		this.camera.position,
+		this.camera.getPosition(),
 		magicVector,
 		0,
 		5000

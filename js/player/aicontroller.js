@@ -1,37 +1,69 @@
-
-
 /**
-* The player controller gets initialized and filled with players
-* BEFORE the world is created!
-*/
+ * The player controller gets initialized and filled with players
+ * BEFORE the world is created!
+ */
 var AIController = function() {
 
-	this.characters = [];
-
-	this.hasTriggered
+	this.actors = [];
 
 }
 
 
 
 /**
- * adds a random playeractor to the game
+ * adds a playeractor to this instance
  */
-AIController.prototype.addActor = function(player) {
-
-	this.characters.push(player);
+AIController.prototype.addActor = function(actor) {
+	this.actors.push(actor);
 }
 
 /**
- * Takes the given input and updates the player according to it
+ * returns all actors in a list
+ */
+AIController.prototype.getActors = function() {
+	return this.actors;
+}
+
+
+/**
+ * Takes the given input and updates the actor according to it
  */
 AIController.prototype.startTurn = function() {
 
-	setTimeout(function(){
-		game.endTurn();
-	}, 1500);
-	return;
+		//cloning the list
+		var charList = this.actors.filter(function(actor) {
+			return actor.isAlive;
+		});
 
+		var world = window.game.world;
+		var cam = window.game.playerController.camera;
+
+		var moveFunc = function() {
+			if (charList.length === 0) {
+				cam.unstick();
+				game.endTurn();
+				return;
+			}
+			var actor = charList.shift();
+
+			cam.stick(actor);
+
+			// move the actor, then call this function again
+			world.moveTo(actor, world.map.getFreeField()).then(moveFunc);
+		}
+
+		moveFunc();
+		return;
+
+	}
+	/**
+	 * Re-fills action-points
+	 */
+AIController.prototype.endTurn = function() {
+
+	this.actors.forEach(function(character) {
+		character.AP.fill();
+	});
 }
 
 /**
@@ -39,8 +71,7 @@ AIController.prototype.startTurn = function() {
  */
 AIController.prototype.update = function() {
 
-	
+
 	return;
 
 }
-

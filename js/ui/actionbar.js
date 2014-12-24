@@ -16,9 +16,9 @@ var ActionBar = function() {
 
 }
 
-ActionBar.prototype.select = function(itemName) {
+ActionBar.prototype.select = function(actor) {
 
-	this.selectedTab.setSelected(itemName);
+	this.selectedTab.setSelected(actor);
 
 }
 
@@ -64,35 +64,52 @@ SaveTab.prototype._loadDom = function() {
 
 		_dom.innerHTML = "";
 
+
+		var txt = document.createElement("INPUT");
+		txt.setAttribute("type", "text");
+		_dom.appendChild(txt);
+
+
 		var btn = document.createElement("BUTTON");
-		btn.innerHTML = "Save current Map";
-
+		btn.innerHTML = "Save Game";
 		btn.onclick = function(evt) {
-			console.log("Saving map");
-			window.game.database.saveCurrentMap().then(function() {
-
-				loadContent();
-			});
+			console.log("Saving Game");
+			window.game.saveGame(txt.value);
 		}
 		_dom.appendChild(btn);
 
+		var createBtn = document.createElement("BUTTON");
+		createBtn.innerHTML = "create random map";
+		createBtn.onclick = function(evt) {
+			console.log("creating random save");
+			window.game.createRandomSaveGame(txt.value);
+		}
+		_dom.appendChild(createBtn);
 
-		game.database.getMapList().then(function(mapList) {
+		var reloadbtn = document.createElement("BUTTON");
+		reloadbtn.innerHTML = "Refresh";
+		reloadbtn.onclick = function(evt) {
+			loadContent();
+		}
+		_dom.appendChild(reloadbtn);
 
-			mapList.forEach(function(map) {
+		//displays all savegames
+		game.dbReady.then(function() {
+			game.database.getSavegames().then(function(saves) {
+				saves.sort(function(a, b) {
+					return a.date - b.date;
+				})
 
-				var btn = document.createElement("BUTTON");
-				btn.innerHTML = "Load: " + map.name;
-
-				btn.onclick = function(evt) {
-					console.log("loading new map");
-					game.world.createWorld(map);
-				}
-
-				_dom.appendChild(btn);
-
+				saves.forEach(function(save) {
+					var btn = document.createElement("BUTTON");
+					btn.innerHTML = "Load: " + save.name;
+					btn.onclick = function(evt) {
+						console.log("Loading new Save");
+						game.loadSavegame(save.name);
+					}
+					_dom.appendChild(btn);
+				});
 			});
-
 		});
 
 	}
@@ -130,14 +147,24 @@ EndTurnTab.prototype._loadDom = function() {
 
 	var btn = document.createElement("BUTTON");
 	btn.innerHTML = "End Turn";
-
 	btn.onclick = function(evt) {
-			game.endTurn();
+		game.endTurn();
 	}
-
-
 	_dom.appendChild(btn);
 
+	var switchMapBtn = document.createElement("BUTTON");
+	switchMapBtn.innerHTML = "Switch Map - (DEBUG)";
+	switchMapBtn.onclick = function(evt) {
+		game.switchMap(-1);
+	}
+	_dom.appendChild(switchMapBtn);
+
+	var switchMapBtn2 = document.createElement("BUTTON");
+	switchMapBtn2.innerHTML = "Switch Map + (DEBUG)";
+	switchMapBtn2.onclick = function(evt) {
+		game.switchMap(+1);
+	}
+	_dom.appendChild(switchMapBtn2);
 
 	this.parent._dom.appendChild(_dom);
 	return _dom;
@@ -173,9 +200,22 @@ SelectedTab.prototype._loadDom = function() {
 }
 
 
-SelectedTab.prototype.setSelected = function(itemName) {
+SelectedTab.prototype.setSelected = function(actor) {
 
-	this._dom.innerHTML = "Selected:<br>" + itemName ? itemName : "Nothing";
+	if (!actor) {
+		this._dom.innerHTML = "Selected: Nothing";
+		return;
+	}
+
+	var info = "";
+	info += "Selected: " + actor.name + "<br>";
+	info += (actor.isAlive ? "HP: " + actor.HP.toString() : "Dead!") + "<br>";
+	info += "AP: " + actor.AP.toString() + "<br>";
+
+
+
+	this._dom.innerHTML = info;
+
 }
 
 /**

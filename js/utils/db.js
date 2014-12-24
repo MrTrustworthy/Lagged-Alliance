@@ -2,6 +2,8 @@ var Database = function() {
 
 	this._db = null;
 
+	this.isLoaded = false;
+
 }
 
 /**
@@ -11,16 +13,16 @@ Database.prototype.init = function() {
 
 	var deferred = new Deferred();
 
-	var openRequest = indexedDB.open("gamedb", 2);
+	var openRequest = indexedDB.open("gamedb", 6);
 
 	openRequest.onupgradeneeded = function(res) {
 		console.log("Upgrading...");
 
 		this._db = res.target.result;
 
-		if (!this._db.objectStoreNames.contains("maps")) {
-			this._db.createObjectStore("maps", {
-				keyPath: "name"
+		if (!this._db.objectStoreNames.contains("savegames")) {
+			this._db.createObjectStore("savegames", {
+				keyPath: "date"
 			});
 		}
 
@@ -28,82 +30,70 @@ Database.prototype.init = function() {
 
 	openRequest.onsuccess = function(res) {
 		this._db = res.target.result;
-		deferred.resolve(this._db);
 		console.log("Database up and running", this._db);
+		this.isLoaded = true;
+		deferred.resolve(this._db);
 	}.bind(this);
 
 	openRequest.onerror = function(res) {
-		deferred.reject()
 		console.log("Error");
+		deferred.reject()
 
 	}
 	openRequest.onblocked = function() {
-		deferred.reject();
 		console.error("Database Blocked!");
+		deferred.reject();
 	}
 
 	return deferred.promise;
 }
+
+//------------------------------------------------------------------------------
+//---------------------Saving Games---------------------------------------------
+//------------------------------------------------------------------------------
 
 
 /**
- * Saves the currently loaded map either by a given name
- * or by a random string
+ * Saves the currently loaded game
  */
-Database.prototype.saveCurrentMap = function(saveName) {
+Database.prototype.saveGame = function(savegame) {
 
 	var deferred = new Deferred();
 
-	saveName = saveName || Math.random().toString(36).substring(7);
+	var transaction = this._db.transaction(["savegames"], "readwrite");
 
-	var transaction = this._db.transaction(["maps"], "readwrite");
-	var store = transaction.objectStore("maps");
-
-	var map = {
-		name: saveName,
-		fields: []
-	};
-	window.game.world.map.forEach(function(field, x, y) {
-		var fld = {
-			position: field.position,
-			type: field.fieldType
-		}
-		map.fields.push(fld);
-	})
-
-	var request = store.add(map);
+	var store = transaction.objectStore("savegames");
+	var request = store.add(savegame);
 
 	request.onsuccess = function(r) {
-		console.log("Saved Map!", r);
+		console.log("Saved Game!", r);
 		deferred.resolve(r);
 	}
 	request.onerror = function(r) {
-		console.error("Error Saving map!", r);
+		console.log("Couldn't save a game with this name");
 		deferred.reject(r);
 	}
 
-	return deferred.promise;
 }
-
 
 /**
  * Loads and returns all currently saved maps
  */
-Database.prototype.getMapList = function() {
+Database.prototype.getSavegames = function() {
 
 	var deferred = new Deferred();
 
-	var transaction = this._db.transaction("maps", "readonly");
-	var store = transaction.objectStore("maps");
+	var transaction = this._db.transaction("savegames", "readonly");
+	var store = transaction.objectStore("savegames");
 
-	var maps = [];
+	var savegames = [];
 
 	var request = store.openCursor();
 
 	request.onsuccess = function(evt) {
 		var cursor = evt.target.result;
 		if (cursor) {
-			maps.push(cursor.value);
+			savegames.push(cursor.value);
 			deferred.update(cursor.value);
 			cursor.continue();
 		}
@@ -114,7 +104,7 @@ Database.prototype.getMapList = function() {
 	}
 
 	transaction.oncomplete = function() {
-		deferred.resolve(maps);
+		deferred.resolve(savegames);
 	}
 
 	return deferred.promise;

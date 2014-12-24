@@ -39,12 +39,12 @@ Position.prototype.clone = function() {
  *
  */
 Position.prototype.calcAlignmentCost = function(otherPos) {
-	return ((this.x === otherPos.x) || (this.y === otherPos.y)) ? 1 : 2; 
+	return ((this.x === otherPos.x) || (this.y === otherPos.y)) ? 1 : 1.5; 
 }
 
 Position.prototype.distanceTo = function(otherPos, variant) {
 
-	variant = variant || Position.distances.MANHATTAN;
+	variant = variant || Position.distances.LINEOFSIGHT;
 
 	if (variant === Position.distances.MANHATTAN) {
 		//manhattan distance
@@ -54,8 +54,8 @@ Position.prototype.distanceTo = function(otherPos, variant) {
 
 	} else if (variant === Position.distances.LINEOFSIGHT) {
 		// airline-distance
-		var v1 = new THREE.Vector2(this.x, otherPos.y);
-		var v2 = new THREE.Vector2(this.x, otherPos.y);
+		var v1 = new THREE.Vector2(this.x, this.y);
+		var v2 = new THREE.Vector2(otherPos.x, otherPos.y);
 		return v1.distanceTo(v2);
 	}
 

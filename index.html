@@ -14,38 +14,36 @@
 	<script type="text/javascript" src="js/utils/gameconstants.js"></script>
 	<script type="text/javascript" src="js/utils/position.js"></script>
 	<script type="text/javascript" src="js/utils/db.js"></script>
-
+	<script type="text/javascript" src="js/utils/simplestat.js"></script>
+	<script type="text/javascript" src="js/utils/chance.js"></script>
 
 	<script type="text/javascript" src="js/gameobjects/gameobject.js"></script>
 	<script type="text/javascript" src="js/gameobjects/tree.js"></script>
 
+	<script type="text/javascript" src="js/world/fieldtype.js"></script>
 	<script type="text/javascript" src="js/world/field.js"></script>
+
 	<script type="text/javascript" src="js/world/pathnode.js"></script>
 	<script type="text/javascript" src="js/world/gameworld.js"></script>
 	<script type="text/javascript" src="js/world/gamemap.js"></script>
 
-
 	<script type="text/javascript" src="js/ui/actionbar.js"></script>
-
-
-
 	
 	<script type="text/javascript" src="js/player/inputhandler.js"></script>
 	<script type="text/javascript" src="js/player/playeractor.js"></script>
 	<script type="text/javascript" src="js/player/healthbar.js"></script>
+	<script type="text/javascript" src="js/attacks/attack.js"></script>
 	<script type="text/javascript" src="js/player/playercontroller.js"></script>
 	<script type="text/javascript" src="js/player/aicontroller.js"></script>
 	
 	<script type="text/javascript" src="js/game.js"></script>
-
+	<script type="text/javascript" src="js/gamecamera.js"></script>
 
 	<script type="x-shader/x-fragment" id="fShader">
 
 
-			// by David Hoskins.
-
 			// -----------------------------------------------------------------------
-			// Water turbulence effect by joltz0r 2013-07-04, improved 2013-07-07
+			// Water turbulence effect by joltz0r 2013-07-04, improved 2013-07-07 by David Hoskins.
 			// -----------------------------------------------------------------------
 
 			#define TAU 6.28318530718
@@ -89,19 +87,12 @@
 
 
 	<script type="x-shader/x-fragment" id="vShader">
-			/**
-			 * Multiply each vertex by the
-			 * model-view matrix and the
-			 * projection matrix (both provided
-			 * by Three.js) to get a final
-			 * vertex position
-			 */
 
 			varying vec2 vUv;
 			attribute vec2 uvv;
 
-			// uniform float amplitude;
 			void main() {
+				// just to transmit the position to the Fragment shader
 				vUv = uvv;
 			    gl_Position = projectionMatrix * modelViewMatrix * vec4(position , 1.0);
 			}
@@ -118,7 +109,8 @@
 
 
 			window.game = new Game();
-			window.game.loadGame();
+			window.game.init();
+			//window.game.loadGame();
 
 
 		};

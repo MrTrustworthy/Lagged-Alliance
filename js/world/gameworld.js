@@ -1,34 +1,74 @@
 "use strict";
 
-var GameWorld = function() {
+var GameWorld = function(ID) {
+
+	this.ID = ID;
 
 	this.map = null;
 
-	this.ambientLight = null;
+	this.ambientLight = new THREE.AmbientLight(0x909090);
 
+	this.aiController = new AIController();
+
+	this._playerRefs = [];
 
 }
 
-GameWorld.objAmount = 50;
+//------------------------------------------------------------------------------
+//---------------------------Show/Hide/De-Serialize-----------------------------
+//------------------------------------------------------------------------------
 
-/**
- * Creates the gameworld
- */
-GameWorld.prototype.createWorld = function(blueprint) {
-
-	// if there has been a map loaded previously, 
-	// remove everything from the scene before loading
-	if (!!this.map) game.scene.children = [];
-
-	this.ambientLight = new THREE.AmbientLight(0x909090);
-
+GameWorld.prototype.show = function() {
 	game.scene.add(this.ambientLight);
+	this.map.show();
+	this.aiController.getActors().forEach(function(actor) {
+		actor.show();
+	});
+	this._playerRefs.forEach(function(actor) {
+		actor.show();
+	});
+}
 
-	this.map = new GameMap(50);
+GameWorld.prototype.hide = function() {
+	game.scene.remove(this.ambientLight);
+	this.map.hide();
+	this.aiController.getActors().forEach(function(actor) {
+		actor.hide();
+	});
+	this._playerRefs.forEach(function(actor) {
+		actor.hide();
+	});
+}
 
-	if (!!blueprint) this.map.loadMapFromBlueprint(blueprint);
-	else this.map.loadRandomMap();
 
+GameWorld.serialize = function(world) {
+
+	//serialize all ai-actors
+	var actorList = [];
+	world.aiController.getActors().forEach(function(actor) {
+		actorList.push(PlayerActor.serialize(actor));
+	});
+
+	return {
+		ID: world.ID,
+		map: GameMap.serialize(world.map),
+		actors: actorList
+	}
+
+}
+
+GameWorld.deserialize = function(save) {
+
+	var world = new GameWorld(save.ID);
+	world.map = GameMap.deserialize(save.map);
+
+	save.actors.forEach(function(actorSave) {
+		var actor = PlayerActor.deserialize(actorSave);
+		var field = world.map.get(actor.position.x, actor.position.y);
+		actor.placeOn(field, true);
+		world.aiController.addActor(actor);
+	});
+	return world; 
 }
 
 //------------------------------------------------------------------------------
@@ -36,33 +76,67 @@ GameWorld.prototype.createWorld = function(blueprint) {
 //------------------------------------------------------------------------------
 
 /**
- * Loads the actors from the given controllers into the game
+ * Loads the actors from the game into the world
  */
-GameWorld.prototype.loadActors = function(playerController, aiController) {
+GameWorld.prototype.dropInPlayer = function(actor) {
 
-	var objs = playerController.characters.concat(aiController.characters);
-
-	objs.forEach(function(actor) {
-		actor.placeOn(this.map.getFreeField(), true);
-	}.bind(this));
+	var field = this.map.get(actor.position.x, actor.position.y);
+	actor.worldID = this.ID; // double tap?? na thats important for switchin!
+	this._playerRefs.push(actor);
+	actor.placeOn(field);
 
 }
 
+/**
+ * cleanup for this world. removes player references etc.
+ */
+GameWorld.prototype.cleanUp = function() {
+
+	this._playerRefs.forEach(function(player){
+		player.placedOn.removeContent();
+	});
+	this.hide();
+	this._playerRefs = [];
 
 
+}
+//------------------------------------------------------------------------------
+//---------------------------Randomizer-----------------------------------------
+//------------------------------------------------------------------------------
 
-GameWorld.prototype.loadObjects = function(amount) {
+/**
+ * Generates a completely random gameworld.
+ */
+GameWorld.prototype.createNewRandomWorld = function() {
 
-	for (var i = 0; i < amount; i++) {
-		var obj = new Tree();
-		var fld = this.map.getFreeField();
+	//load random map
+	this.map = new GameMap(50);
+	this.map.loadRandomMap();
 
-		fld.placeContent(obj);
-		obj.model.position.x = fld.model.position.x;
-		obj.model.position.y = fld.model.position.y;
+	//loading random players
+	var actorList = []
+	for (var i = 0; i < 3; i++) {
+		var actor = new PlayerActor(null, 1, this.ID, true);
+		actorList.push(actor);
+		actor.placeOn(this.map.getFreeField());
+		this.aiController.addActor(actor);
 	}
 
+	// //load random objects
+	// for (var i = 0; i < 30; i++) {
+	// 	var obj = new Tree();
+	// 	var fld = this.map.getFreeField();
+
+	// 	fld.placeContent(obj);
+	// 	obj.model.position.x = fld.model.position.x;
+	// 	obj.model.position.y = fld.model.position.y;
+	// }
 }
+
+
+
+
+
 
 
 //------------------------------------------------------------------------------
@@ -70,84 +144,47 @@ GameWorld.prototype.loadObjects = function(amount) {
 //------------------------------------------------------------------------------
 
 /**
- * Calculates a path
+ * Calculates a path, then:
+ * moves the object to the next node until it reaches the target node.
  */
 GameWorld.prototype.moveTo = function(actor, target) {
+
+	var deferred = new Deferred();
+
 	var path;
 
 	try {
 		path = this.map.findPath(actor.placedOn, target);
 	} catch (e) {
 		console.warn("no path could be found");
-		return;
+		deferred.resolve();
 	}
 
-	if (path.length === 0) return;
-
-	this._moveAlongPath(
-		actor,
-		path,
-		//ondone
-		function() {
-			console.log("end reached");
-		},
-		//update needs to return true or we cancel it.
-		function(actor, field) {
-
-			console.log("field reached", field.fieldType);
-			return !(field.fieldType.name === "water");
-		},
-		function() {
-			console.log("path aborted");
-		});
-
-
-}
-
-
-
-/**
- * moves the object to the next node until it reaches the target node.
- * calls onUpdate after each step and only continues execution if onUpdate
- * returns true. calls onDone at the end.
- */
-GameWorld.prototype._moveAlongPath = function(actor, path, onDone, onUpdate, onCancel) {
-
-
-	onUpdate = onUpdate instanceof Function ? onUpdate : function() {
-		return true
-	};
-	onDone = onDone instanceof Function ? onDone : function() {
-		return true
-	};
 
 	var move_to_next = function() {
 
 		//no futher fields available -> end loop
 		if (path.length === 1) {
-			onDone();
-
-			// go on if there are still fields to move to
-		} else {
-			var curr_field = path.pop();
-			curr_field.removeContent();
-
-			var end_field = path[path.length - 1];
-
-			// call the animation function.
-			// if the onUpdate function that gets executed afterwards
-			// returns true, we go on
-			actor.moveToField(end_field).then(function() {
-
-				var canGoOn = onUpdate(actor, end_field);
-				if (canGoOn) move_to_next();
-				else onCancel();
-
-			});
+			deferred.resolve();
+			return;
 		}
 
+		// go on if there are still fields to move to
+		var curr_field = path.pop();
+		curr_field.removeContent();
+		var end_field = path[path.length - 1];
+
+		// call the animation function.
+		actor.moveToField(end_field).then(move_to_next, function() {
+			deferred.resolve();
+		});
 	}.bind(this);
 
-	move_to_next();
+
+	// do i need to force this async??
+	if (path.length === 0) deferred.resolve();
+	else move_to_next();
+
+	return deferred.promise;
 
 }

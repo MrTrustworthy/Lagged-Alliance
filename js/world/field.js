@@ -4,9 +4,9 @@ var Field = function(x, y, fieldType) {
 
 	this.position = new Position(x, y);
 
-	this.fieldType = fieldType || FieldTypes.random();
+	this.fieldType = fieldType || Field.FieldTypeGenerator.random();
 
-	this.model = this.generateModel();
+	this.model = null;
 
 	this.occupant = null;
 
@@ -14,7 +14,42 @@ var Field = function(x, y, fieldType) {
 
 }
 
+//------------------------------------------------------------------------------
+//---------------------------Static Stuff---------------------------------------
+//------------------------------------------------------------------------------
+
 Field.prototype = Object.create(GameObject.prototype);
+
+Field.FIELD_SIZE = 5;
+Field.FieldTypeGenerator = new FieldTypeGenerator();
+
+// For DB-Saving and loading
+Field.serialize = function(field) {
+	return {
+		position: field.position,
+		type: field.fieldType
+	}
+}
+
+Field.deserialize = function(saved) {
+	return new Field(saved.position.x, saved.position.y, saved.type);
+}
+
+
+Field.prototype.show = function() {
+	if (!this.model) this.generateModel();
+	game.scene.add(this.model);
+}
+
+Field.prototype.hide = function() {
+
+	game.scene.remove(this.model);
+	delete this.model;
+}
+
+//------------------------------------------------------------------------------
+//---------------------------Functions------------------------------------------
+//------------------------------------------------------------------------------
 
 /**
  * Adds content to a field and adjusts the position.
@@ -61,20 +96,16 @@ Field.prototype.generateModel = function() {
 		material = this.getWaterShader();
 	}
 
-	var model = new THREE.Mesh(geometry, material);
+	this.model = new THREE.Mesh(geometry, material);
 
-	model.position.x = this.position.x * Field.FIELD_SIZE;
-	model.position.y = this.position.y * Field.FIELD_SIZE;
-	model.position.z = 0;
+	this.model.position.x = this.position.x * Field.FIELD_SIZE;
+	this.model.position.y = this.position.y * Field.FIELD_SIZE;
+	this.model.position.z = 0;
 
-	model.userData = this;
+	this.model.userData = this;
 
-	game.scene.add(model);
-
-	model.matrixAutoUpdate = false;
-	model.updateMatrix();
-
-	return model;
+	this.model.matrixAutoUpdate = false;
+	this.model.updateMatrix();
 }
 
 
@@ -110,8 +141,8 @@ Field.prototype.equals = function(otherField) {
 }
 
 /**
-* generates the shader material for water
-*/
+ * generates the shader material for water
+ */
 Field.prototype.getWaterShader = function(px, py) {
 
 
@@ -158,17 +189,10 @@ Field.prototype.getWaterShader = function(px, py) {
 }
 
 
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
 
 /**
  * Static methods and properties of Field
  */
-
-Field.FIELD_SIZE = 5;
-
-Field.FIELD_HEIGHT = 0.01;
 
 
 
