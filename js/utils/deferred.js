@@ -10,6 +10,42 @@ var Deferred = function() {
 }
 
 
+/**
+ * returns a promise for an array containing all the promised values
+ */
+Deferred.when = function() {
+	var __deferred = new Deferred();
+
+
+	var promises = arguments.filter(function(arg) {
+		return (arg instanceof Promise);
+	});
+
+	var toGo = promises.length;
+
+	if (toGo < 1) throw Error("No promises submitted");
+
+	// save the solve-values in the same 
+	var solveValues = [];
+	solveValues.length = toGo;
+
+	promises.forEach(function(promise, index) {
+
+		// after the promise is fulfilled
+		promise.then(function(value) {
+
+			__deferred.update(value);
+			solveValues[index] = value;
+
+			// one less to go;
+			toGo -= 1;
+			if (toGo === 0) __deferred.resolve(solveValues);
+
+		})
+	});
+	return __deferred.promise;
+}
+
 Deferred.prototype.resolve = function(value, strict) {
 
 	if (this.state === this.UNFULFILLED) {

@@ -10,7 +10,13 @@ var GameWorld = function(ID) {
 
 	this.aiController = new AIController();
 
-	this._playerRefs = [];
+	this.playerTeam = null;
+
+	this.gameObjects = [];
+
+	//contains scripts in the following form:
+	// {position: pos, script: script}
+	this.worldScripts = [];
 
 }
 
@@ -21,38 +27,42 @@ var GameWorld = function(ID) {
 GameWorld.prototype.show = function() {
 	game.scene.add(this.ambientLight);
 	this.map.show();
-	this.aiController.getActors().forEach(function(actor) {
+	this.aiController.getTeam().forEach(function(actor) {
 		actor.show();
 	});
-	this._playerRefs.forEach(function(actor) {
-		actor.show();
+	this.gameObjects.forEach(function(object) {
+		object.show();
 	});
+	!!this.playerTeam && this.playerTeam.show();
 }
 
 GameWorld.prototype.hide = function() {
 	game.scene.remove(this.ambientLight);
 	this.map.hide();
-	this.aiController.getActors().forEach(function(actor) {
+	this.aiController.getTeam().forEach(function(actor) {
 		actor.hide();
 	});
-	this._playerRefs.forEach(function(actor) {
-		actor.hide();
+	this.gameObjects.forEach(function(object) {
+		object.hide();
 	});
+	!!this.playerTeam && this.playerTeam.hide()
 }
 
 
 GameWorld.serialize = function(world) {
 
-	//serialize all ai-actors
-	var actorList = [];
-	world.aiController.getActors().forEach(function(actor) {
-		actorList.push(PlayerActor.serialize(actor));
+
+	var objectList = []
+	world.gameObjects.forEach(function(tree) {
+		objectList.push(Tree.serialize(tree));
 	});
 
 	return {
 		ID: world.ID,
 		map: GameMap.serialize(world.map),
-		actors: actorList
+		team: Team.serialize(world.aiController.getTeam()),
+		// actors: actorList,
+		objects: objectList
 	}
 
 }
@@ -62,13 +72,35 @@ GameWorld.deserialize = function(save) {
 	var world = new GameWorld(save.ID);
 	world.map = GameMap.deserialize(save.map);
 
-	save.actors.forEach(function(actorSave) {
-		var actor = PlayerActor.deserialize(actorSave);
+	var team = Team.deserialize(save.team);
+
+	world.aiController.switchTeam(team);
+	team.setWorld(world);
+
+	team.forEach(function(actor) {
 		var field = world.map.get(actor.position.x, actor.position.y);
 		actor.placeOn(field, true);
-		world.aiController.addActor(actor);
 	});
-	return world; 
+
+	save.objects.forEach(function(object) {
+		var tree = Tree.deserialize(object);
+		var field = world.map.get(tree.position.x, tree.position.y);
+		tree.placeOn(field);
+		world.gameObjects.push(tree);
+	});
+
+	// world event scripts
+	var flds = world.map.getBorderFields("south", false);
+	flds.forEach(function(fld){
+		fld.addEventListener("walkOn", function(event){
+			if(confirm("Are you sure you want to leave the map?")){
+				game.switchMap(-1);
+			}
+		});
+	});
+
+
+	return world;
 }
 
 //------------------------------------------------------------------------------
@@ -76,30 +108,38 @@ GameWorld.deserialize = function(save) {
 //------------------------------------------------------------------------------
 
 /**
- * Loads the actors from the game into the world
+ * Loads the actors from the game into the world.
+ * This is needed for loading another map and drops the
+ * player characters from the game.js into the world
  */
-GameWorld.prototype.dropInPlayer = function(actor) {
+GameWorld.prototype.dropInPlayers = function(team) {
 
-	var field = this.map.get(actor.position.x, actor.position.y);
-	actor.worldID = this.ID; // double tap?? na thats important for switchin!
-	this._playerRefs.push(actor);
-	actor.placeOn(field);
+	// set ref & backref
+	this.playerTeam = team;
+	team.setWorld(this);
 
+	team.forEach(function(actor) {
+		var field = this.map.get(actor.position.x, actor.position.y);
+		actor.worldID = this.ID; // double tap?? na thats important for switchin!
+		actor.placeOn(field);
+	}.bind(this));
 }
 
 /**
- * cleanup for this world. removes player references etc.
+ *
  */
-GameWorld.prototype.cleanUp = function() {
-
-	this._playerRefs.forEach(function(player){
+GameWorld.prototype.removePlayerTeam = function() {
+	this.playerTeam.forEach(function(player) {
 		player.placedOn.removeContent();
+		player.placedOn = null; //need?
+		player.hide();
 	});
-	this.hide();
-	this._playerRefs = [];
-
-
+	var buffer = this.playerTeam;
+	this.playerTeam = null;
+	return buffer;
 }
+
+
 //------------------------------------------------------------------------------
 //---------------------------Randomizer-----------------------------------------
 //------------------------------------------------------------------------------
@@ -114,28 +154,26 @@ GameWorld.prototype.createNewRandomWorld = function() {
 	this.map.loadRandomMap();
 
 	//loading random players
-	var actorList = []
+	// var actorList = []
+	var team = new Team(this.ID, "AI");
+	team.setWorld(this);
+
 	for (var i = 0; i < 3; i++) {
-		var actor = new PlayerActor(null, 1, this.ID, true);
-		actorList.push(actor);
+		var randName = (chance.first() + " " + chance.last());
+		var actor = new PlayerActor(randName, 1, this.ID, true);
 		actor.placeOn(this.map.getFreeField());
-		this.aiController.addActor(actor);
+		team.addActor(actor);
 	}
 
-	// //load random objects
-	// for (var i = 0; i < 30; i++) {
-	// 	var obj = new Tree();
-	// 	var fld = this.map.getFreeField();
+	this.aiController.switchTeam(team);
 
-	// 	fld.placeContent(obj);
-	// 	obj.model.position.x = fld.model.position.x;
-	// 	obj.model.position.y = fld.model.position.y;
-	// }
+	//load random objects
+	for (var i = 0; i < 30; i++) {
+		var tree = new Tree();
+		this.gameObjects.push(tree);
+		tree.placeOn(this.map.getFreeField());
+	}
 }
-
-
-
-
 
 
 

@@ -97,7 +97,7 @@ SaveTab.prototype._loadDom = function() {
 		game.dbReady.then(function() {
 			game.database.getSavegames().then(function(saves) {
 				saves.sort(function(a, b) {
-					return a.date - b.date;
+					return b.date - a.date;
 				})
 
 				saves.forEach(function(save) {

@@ -4,7 +4,7 @@
  */
 var PlayerController = function() {
 
-	this.actors = [];
+	this.team = null;
 
 	this.camera = null;
 
@@ -32,22 +32,23 @@ PlayerController.prototype.loadController = function() {
 /**
  * adds a playeractor to this instance
  */
-PlayerController.prototype.addActor = function(actor) {
-	this.actors.push(actor);
+PlayerController.prototype.switchTeam = function(team) {
+	this.team = team;
 }
 
 /**
-* removes all actors for cleanup purposes
-*/
-PlayerController.prototype.removeActors = function() {
-	this.actors = [];
+ * removes all actors for cleanup purposes
+ */
+PlayerController.prototype.removeTeam = function() {
+	this.deselect();
+	this.team = null;
 }
 
 /**
  * returns all actors in a list
  */
-PlayerController.prototype.getActors = function() {
-	return this.actors;
+PlayerController.prototype.getTeam = function() {
+	return this.team;
 }
 
 /**
@@ -65,7 +66,7 @@ PlayerController.prototype.startTurn = function() {
  * Function that gets executed at the start of a turn
  */
 PlayerController.prototype.endTurn = function() {
-	this.actors.forEach(function(character) {
+	this.team.forEach(function(character) {
 		character.AP.fill();
 	});
 	this.camera.savePosition("playerController");
@@ -180,9 +181,8 @@ PlayerController.prototype.update = function() {
 						game.world.moveTo(this.selected, field);
 						this.deselect();
 					} else {
-
+						//????
 					}
-
 				} else {
 					this.deselect();
 				}
@@ -200,7 +200,7 @@ PlayerController.prototype.update = function() {
 PlayerController.prototype.isMember = function(actor) {
 
 	var isMember = false;
-	this.actors.forEach(function(element, index) {
+	this.team.forEach(function(element, index) {
 		if (element.name === actor.name) isMember = true;
 	});
 

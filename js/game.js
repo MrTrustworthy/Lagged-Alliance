@@ -33,6 +33,8 @@ var Game = function() {
 	this._worlds = [];
 	this.world = null;
 
+	this.teams = [];
+
 }
 
 /**
@@ -44,29 +46,43 @@ Game.prototype.init = function() {
 	this.playerController.loadController();
 }
 
-
-Game.prototype.switchMap = function(amount){
+/**
+ * switches the world
+ */
+Game.prototype.switchMap = function(direction) {
 	console.log("Switching map");
 
+	this.moveTeam(direction);
 
-	var newID = this.world.ID + amount;
+	var newID = this.world.ID + direction;
 
-	var newWorld = this._worlds.filter(function(world) {
-		return world.ID === newID;
-	})[0];
+	this.world.hide();
+	this.world = this._worlds[newID];
 
-	this.world.cleanUp();
-
-	this.world = newWorld;
-
-	this.playerController.getActors().forEach(function(actor) {
-		this.world.dropInPlayer(actor);
-	}.bind(this));
+	this.playerController.removeTeam();
+	this.playerController.switchTeam(this.world.playerTeam);
 
 	this.controllerQueue = [this.playerController, this.world.aiController];
 	this.world.show();
+}
 
+/**
+* moves a team from the current world towards a world in the
+* given direction (-1/1).
+*/
+Game.prototype.moveTeam = function(direction) {
+	var team = this.world.removePlayerTeam();
+	var destination = this._worlds[this.world.ID + direction];
 
+	var freeFields = destination.map.getBorderFields(direction > 0 ? "south" : "north", true);
+	freeFields = chance.shuffle(freeFields);
+
+	//puts the actors onto the border fields
+	team.forEach(function(actor, i){
+		actor.position = freeFields.shift().position.clone();
+	});
+
+	destination.dropInPlayers(team);
 }
 
 
@@ -86,50 +102,51 @@ Game.prototype.loadSavegame = function(name) {
 		//load all saves from the db, then start up the best one
 		this.database.getSavegames().then(function(saves) {
 
-			var correctNameSaves = saves.filter(function(save) {
+			var gameSave = saves.filter(function(save) {
 				return save.name === name;
-			});
-			//this._loadGame(correctNameSaves[0]);
-
-			var gameSave = correctNameSaves[0];
+			})[0];
 
 			console.info("Trying to load savegame", gameSave);
 
 			//hide world
-			if (!!this.world) this.world.cleanUp();
+			if (!!this.world) this.world.hide();
 
+
+			//remove old players (if there are) and load new ones
+			this.playerController.removeTeam();
 
 			//remove old worlds and load new ones
 			this._worlds = [];
+			this.teams = [];
+
+			//loads new worlds
 			gameSave.worlds.forEach(function(worldSave) {
 				this._worlds.push(GameWorld.deserialize(worldSave));
 			}.bind(this));
 
 
-			//remove old players and load new ones
-			if (!this.playerController) {
+			// loads teams and places them into the worlds
+			gameSave.teams.forEach(function(teamSave) {
 
-				this.playerController = new PlayerController();
-				this.playerController.loadController();
-			}
-			this.playerController.removeActors();
+				var team = Team.deserialize(teamSave);
+				this.teams.push(team);
 
-			gameSave.players.forEach(function(actorSave) {
-
-				var actor = PlayerActor.deserialize(actorSave);
-				this.playerController.addActor(actor);
-				this.world = this._worlds[actor.worldID];
-
-				//todo hmmm this function is weird
-				this.world.dropInPlayer(actor);
-
-
+				var teamWorld = this._worlds[team.worldID];
+				//sets backref too
+				teamWorld.dropInPlayers(team);
 			}.bind(this));
 
 
+			this.world = this._worlds[gameSave.currentWorldID];
+
+			// var worldTeam = this.world.playerTeam || new Team()
+
+			this.playerController.switchTeam(this.world.playerTeam);
+
+			// "this.world" is the world with the last team on it.
+			this.world.show();
 
 			this.controllerQueue = [this.playerController, this.world.aiController];
-			this.world.show();
 
 			// if there is not already a render-loop in progress, start it now
 			if (!this.__renderHandle) this.startGame();
@@ -147,10 +164,10 @@ Game.prototype.loadSavegame = function(name) {
 Game.prototype.saveGame = function(name) {
 
 	game.dbReady.then(function() {
-		// this basically serializes the current game state
-		var actorList = [];
-		this.playerController.getActors().forEach(function(actor) {
-			actorList.push(PlayerActor.serialize(actor));
+
+		var teamList = [];
+		this.teams.forEach(function(team) {
+			teamList.push(Team.serialize(team));
 		});
 
 		var worldList = [];
@@ -162,7 +179,8 @@ Game.prototype.saveGame = function(name) {
 			name: name,
 			date: Date.now(),
 			worlds: worldList,
-			players: actorList
+			currentWorldID: this.world.ID,
+			teams: teamList
 		}
 
 		this.database.saveGame(save);
@@ -191,12 +209,22 @@ Game.prototype.createRandomSaveGame = function(name) {
 			this._worlds.push(world);
 		}
 
+		this.world = this._worlds[2];
+
 		//TODO load
+		var team = new Team(this.world.ID, "Player");
+		this.teams.push(team);
+
+
 		for (var i = 0; i < 4; i++) {
-			var player = new PlayerActor(null, 0, 1);
-			this.playerController.addActor(player);
-			this._worlds[2].dropInPlayer(player, this._worlds[2].map.getFreeField());
+			var randName = (chance.first() + " " + chance.last());
+			var player = new PlayerActor(randName, 0, 1, true);
+			team.addActor(player);
+			var fld = this.world.map.getFreeField();
+			player.position = fld.position.clone();
 		}
+
+		this.world.dropInPlayers(team);
 
 		this.saveGame(name);
 	}.bind(this));
@@ -226,8 +254,6 @@ Game.prototype.endTurn = function() {
  * re-drawing the scene and processing the game loop
  */
 Game.prototype.startGame = function() {
-
-	this.hasAlreadyLoadedGame = true;
 
 	var renderFunc = function() {
 

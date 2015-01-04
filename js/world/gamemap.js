@@ -20,12 +20,10 @@ var GameMap = function(size) {
 //------------------------------------------------------------------------------
 
 GameMap.serialize = function(gameMap) {
-
 	var array = [];
 	gameMap.forEach(function(field) {
 		array.push(Field.serialize(field));
 	});
-
 	return {
 		fields: array
 	}
@@ -34,21 +32,21 @@ GameMap.serialize = function(gameMap) {
 GameMap.deserialize = function(save) {
 	var size = Math.sqrt(save.fields.length);
 	var gameMap = new GameMap(size);
-	save.fields.forEach(function(field){
+	save.fields.forEach(function(field) {
 		gameMap._map[field.position.x][field.position.y] = Field.deserialize(field);
 	});
 
 	return gameMap;
 }
 
-GameMap.prototype.show = function(){
-	this.forEach(function(field){
+GameMap.prototype.show = function() {
+	this.forEach(function(field) {
 		field.show();
 	});
 }
 
-GameMap.prototype.hide = function(){
-	this.forEach(function(field){
+GameMap.prototype.hide = function() {
+	this.forEach(function(field) {
 		field.hide();
 	});
 }
@@ -62,7 +60,7 @@ GameMap.MAX_PATHFIND_ITERATIONS = 1000;
 // type-error-safe version of array[x][y]
 GameMap.prototype.get = function(x, y) {
 	//transform position into x/y if needed
-	if(arguments.length === 1){
+	if (arguments.length === 1) {
 		var pos = x;
 		x = pos.x;
 		y = pos.y;
@@ -86,10 +84,36 @@ GameMap.prototype.getRandomField = function() {
 GameMap.prototype.getFreeField = function() {
 
 	var fld = this.getRandomField();
-
 	if (!fld.isBlocked && !fld.occupant) return fld;
-
 	else return this.getFreeField();
+}
+
+GameMap.prototype.getBorderFields = function(border, freeFieldsOnly) {
+
+	var foundFields = [];
+	var size = this._map.length;
+
+	for (var i = 0; i < size; i++) {
+
+		var fld;
+		switch (border) {
+			case "south":
+				var fld = this.get(i, 0);
+				break;
+			case "north":
+				var fld = this.get(i, size - 1);
+				break;
+			case "west":
+				var fld = this.get(0, i);
+				break;
+			case "east":
+				var fld = this.get(size - 1, i);
+				break;
+		}
+		// if only free fields are required, make sure the field is not occupied
+		if (!freeFieldsOnly || (!fld.isBlocked && !fld.occupant)) foundFields.push(fld);
+	}
+	return foundFields;
 }
 
 // Iterates over every field of the map
@@ -101,7 +125,6 @@ GameMap.prototype.forEach = function(callback_func) {
 		}
 	}
 }
-
 
 
 
@@ -126,7 +149,7 @@ GameMap.prototype.loadRandomMap = function() {
 	}
 	this._map = arr;
 
-	this._improve(2 /* 4 */);
+	this._improve(2 /* 4 */ );
 }
 
 /**
@@ -281,16 +304,26 @@ GameMap.prototype.findPath = function(field_a, field_b) {
 
 /**
  * returns an array with all neighbouring fields of a given field position
+ * scale says how far a field can be away and still be considered a neighboring field
  */
-GameMap.prototype.neighboursOf = function(field) {
+GameMap.prototype.neighboursOf = function(field, scale) {
+
+	// default scale is 1
+	scale = scale || 1;
+	if(scale === 0) return [];
+
+	
 	var pos_x = field.position.x;
 	var pos_y = field.position.y;
 	var arr = [];
 
-	for (var x = pos_x - 1; x <= pos_x + 1; x++) {
-		for (var y = pos_y - 1; y <= pos_y + 1; y++) {
+	// go through all fields from (-scale/-scale) to (scale/scale)
+	for (var x = pos_x - scale; x <= pos_x + scale; x++) {
+		for (var y = pos_y - scale; y <= pos_y + scale; y++) {
 
 			var fld = this.get(x, y);
+
+			// if the field exists and is NOT the original field
 			if (!!fld && !(pos_x === x && pos_y === y)) {
 				arr.push(fld);
 			}

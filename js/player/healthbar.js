@@ -4,7 +4,7 @@ var HealthBar = function(player) {
 
 	this.playerRef = player;
 
-	this.model = null; //this.generateModel();
+	this.model = null;
 
 }
 
@@ -27,7 +27,7 @@ HealthBar.prototype.generateModel = function() {
 	// Creating the healthbar
 	var spriteGeo = new THREE.PlaneGeometry(Field.FIELD_SIZE, Field.FIELD_SIZE / 3, 1, 1);
 	var spriteMat = new THREE.MeshBasicMaterial({
-		color: this.playerRef.teamID === 0 ? 0x3311cc : 0xcc1133
+		color: this.playerRef.team.type === "Player" ? 0x3311cc : 0xcc1133 //TODO
 	});
 
 	this.model = new THREE.Mesh(spriteGeo, spriteMat);
@@ -42,11 +42,18 @@ HealthBar.prototype.generateModel = function() {
 
 }
 
+
+/**
+* updates the position of the healthbar based on the players position
+* warns if no player model is available
+*/
 HealthBar.prototype.updatePosition = function() {
 
 	if (!!this.model) {
 		this.model.position.x = this.playerRef.model.position.x;
 		this.model.position.y = this.playerRef.model.position.y;
+	} else {
+		console.warn("no model available to update healthbar");
 	}
 
 }

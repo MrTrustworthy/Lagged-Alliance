@@ -4,25 +4,11 @@
  */
 var AIController = function() {
 
-	this.actors = [];
 
 }
 
+AIController.prototype = Object.create(PlayerController.prototype);
 
-
-/**
- * adds a playeractor to this instance
- */
-AIController.prototype.addActor = function(actor) {
-	this.actors.push(actor);
-}
-
-/**
- * returns all actors in a list
- */
-AIController.prototype.getActors = function() {
-	return this.actors;
-}
 
 
 /**
@@ -31,7 +17,7 @@ AIController.prototype.getActors = function() {
 AIController.prototype.startTurn = function() {
 
 		//cloning the list
-		var charList = this.actors.filter(function(actor) {
+		var charList = this.team.filter(function(actor) {
 			return actor.isAlive;
 		});
 
@@ -61,7 +47,7 @@ AIController.prototype.startTurn = function() {
 	 */
 AIController.prototype.endTurn = function() {
 
-	this.actors.forEach(function(character) {
+	this.team.forEach(function(character) {
 		character.AP.fill();
 	});
 }

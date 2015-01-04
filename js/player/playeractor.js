@@ -2,11 +2,7 @@
 
 var PlayerActor = function(name, teamID, worldID, isAlive) {
 
-	this.name = name || (chance.first() + " " + chance.last());
-
-	// 0 = player, 1 = enemy, 2 = neutral
-	this.teamID = teamID;
-	this.worldID = worldID; // ID=0 means it's bound to the map
+	this.name = name;
 
 	// can be overwritten by the deserialize-function
 	this.isAlive = isAlive;
@@ -18,6 +14,9 @@ var PlayerActor = function(name, teamID, worldID, isAlive) {
 	this.model = null;
 
 	this.placedOn = null;
+
+	// gets set from the teamm
+	this.team = null;
 
 	this.healthbar = new HealthBar(this);
 
@@ -36,12 +35,10 @@ PlayerActor.prototype = Object.create(GameObject.prototype);
 PlayerActor.serialize = function(actor) {
 	return {
 		name: actor.name,
-		teamID: actor.teamID,
-		worldID: actor.worldID,
 		isAlive: actor.isAlive,
 		position: actor.position,
 		HP: actor.HP,
-		AP: actor.AP 
+		AP: actor.AP
 	}
 }
 
@@ -55,15 +52,15 @@ PlayerActor.deserialize = function(saved) {
 }
 
 /**
- * Do we need these?
+ * Do we need these? Yes!
  */
 PlayerActor.prototype.show = function() {
 	if (!this.model) this.generateModel();
 	this.healthbar.show();
 	this.updatePosition();
 	game.scene.add(this.model);
-	
-} 
+
+}
 
 PlayerActor.prototype.hide = function() {
 	game.scene.remove(this.model);
@@ -117,7 +114,7 @@ PlayerActor.prototype.kill = function(ticks) {
 
 	this.placedOn.removeContent();
 
-	var ticks = ticks || 40;
+	var ticks = ticks || 20;
 	var i = 0;
 	var killFunc = function() {
 		if (i === ticks) {
@@ -132,6 +129,13 @@ PlayerActor.prototype.kill = function(ticks) {
 
 	window.game.scene.addEventListener("tick", killFunc);
 	window.game.fadeOut(this.healthbar.model, ticks / 60);
+	this.healthbar.hide();
+
+	// debugging: place bomb on field if player was killed
+	// this.placedOn.fieldScript = new FieldScriptList.explosion();
+	// this.placedOn.fieldScript.activate();
+
+
 	console.log(this.name + " got killed!");
 }
 
@@ -149,7 +153,7 @@ PlayerActor.prototype.placeOn = function(target) {
 
 	if (!(target instanceof Field) || !!target.occupant) console.error("Not a field!");
 
-	if(this.isAlive){
+	if (this.isAlive) {
 		target.placeContent(this);
 		this.placedOn = target;
 	}
@@ -157,14 +161,17 @@ PlayerActor.prototype.placeOn = function(target) {
 }
 
 /**
-* Puts updates the player-model based on the current position
-*/
+ * Puts updates the player-model based on the current position
+ */
 PlayerActor.prototype.updatePosition = function() {
 
-	if(!this.model) console.error("Not loaded");
+	if (!this.model) {
+		console.error("Not loaded");
+	}
+
 	this.model.position.x = this.position.x * Field.FIELD_SIZE;
 	this.model.position.y = this.position.y * Field.FIELD_SIZE;
-	this.model.position.z = 5;
+	//this.model.position.z = 5;
 
 	this.healthbar.updatePosition();
 }
@@ -234,19 +241,17 @@ PlayerActor.prototype.generateModel = function() {
 
 	this.model = new THREE.Mesh(geometry, material);
 
-	this.model.position.x = this.position.x;
-	this.model.position.y = this.position.y;
-	this.model.position.z = 4;
-
-	this.model.rotateX(Math.PI / 2);
-	this.model.userData = this;
+	this.model.position.x = 0; //this.position.x;
+	this.model.position.y = 0; //this.position.y;
 
 	//if the player is dead, adapt the model
-	if (!this.isAlive) {
-		this.model.rotateX(-(Math.PI / 2));
-		this.model.position.z -= 8;
+	if (this.isAlive) {
+		this.model.rotateX(Math.PI / 2);
+		this.model.position.z = 4;
+	} else {
+		this.model.position.z = 1.5;
 	}
 
-
+	this.model.userData = this;
 
 }

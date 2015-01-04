@@ -2,15 +2,19 @@
 
 var Field = function(x, y, fieldType) {
 
+	new THREE.EventDispatcher().apply(this);
+
 	this.position = new Position(x, y);
 
-	this.fieldType = fieldType || Field.FieldTypeGenerator.random();
+	this.fieldType = Field.FieldTypeGenerator.byID(fieldType.id);
 
 	this.model = null;
 
 	this.occupant = null;
 
 	this.isBlocked = false;
+
+	//this.fieldScript = new FieldScriptList[fieldScriptName](this);
 
 }
 
@@ -24,27 +28,39 @@ Field.FIELD_SIZE = 5;
 Field.FieldTypeGenerator = new FieldTypeGenerator();
 
 // For DB-Saving and loading
-Field.serialize = function(field) {
+Field.serialize = function(field) { 
 	return {
 		position: field.position,
 		type: field.fieldType
+		//scriptName: field.fieldScript.name
 	}
 }
 
 Field.deserialize = function(saved) {
-	return new Field(saved.position.x, saved.position.y, saved.type);
+	var fld = new Field(
+		saved.position.x,
+		saved.position.y,
+		saved.type
+		//saved.scriptName
+	);
+	return fld;
 }
 
 
 Field.prototype.show = function() {
 	if (!this.model) this.generateModel();
 	game.scene.add(this.model);
+
+	//activates fieldscript
+	//this.fieldScript.activate();
 }
 
 Field.prototype.hide = function() {
-
 	game.scene.remove(this.model);
 	delete this.model;
+
+	// deactivate fieldscript
+	//this.fieldScript.deactivate();
 }
 
 //------------------------------------------------------------------------------
@@ -63,15 +79,22 @@ Field.prototype.placeContent = function(content) {
 	}
 	this.occupant = content;
 	this.isBlocked = true;
+
+	// dispatches "walkOn" event
+	!!this.model && this.dispatchEvent({type: "walkOn"});
+
+	// executes the fieldScript
+	//this.fieldScript && this.fieldScript.execute();
 }
 
-/**
+/** 
  * removes the current content from a field
  */
 Field.prototype.removeContent = function() {
 	if (!this.occupant) console.warn("No Occupant on Field to remove");
 	this.occupant = null;
 	this.isBlocked = false;
+	!!this.model && this.dispatchEvent({type: "walkOff"});
 }
 
 /**
@@ -118,8 +141,12 @@ Field.prototype.blink = function(time) {
 	this.model.material.transparent = true;
 
 	setTimeout(function() {
-		this.model.material.opacity = 1;
-		this.model.material.transparent = false;
+
+		if (!!this.model) {
+			this.model.material.opacity = 1;
+			this.model.material.transparent = false;
+		}
+
 	}.bind(this), time ? time : 1000);
 }
 
@@ -177,8 +204,8 @@ Field.prototype.getWaterShader = function(px, py) {
 	game.scene.addEventListener("tick", timePassingFunc);
 
 
-	var vShader = document.getElementById("vShader").text
-	var fShader = document.getElementById("fShader").text
+	var vShader = document.getElementById("vShader").text;
+	var fShader = document.getElementById("fShader").text;
 
 	return new THREE.ShaderMaterial({
 		uniforms: uniforms,
@@ -186,58 +213,4 @@ Field.prototype.getWaterShader = function(px, py) {
 		vertexShader: vShader,
 		fragmentShader: fShader
 	});
-}
-
-
-
-/**
- * Static methods and properties of Field
- */
-
-
-
-var FieldTypes = {
-	water: {
-		id: 0,
-		name: "water",
-		movementCost: 3
-	},
-	grass: {
-		id: 1,
-		name: "grass",
-		movementCost: 1
-	},
-	dirt: {
-		id: 2,
-		name: "dirt",
-		movementCost: 1
-	},
-	stone: {
-		id: 3,
-		name: "stone",
-		movementCost: 1
-	},
-	byID: function(id) {
-		for (var type in FieldTypes) {
-			if (FieldTypes.hasOwnProperty(type) &&
-				!(FieldTypes[type] instanceof Function) &&
-				FieldTypes[type].id === id) {
-				return FieldTypes[type];
-			}
-		}
-	},
-	randomID: function() {
-		return Math.floor(Math.random() * 4 + 1) - 1;
-	},
-	random: function() {
-		var types = [];
-		for (var type in FieldTypes) {
-			if (FieldTypes.hasOwnProperty(type) &&
-				!(FieldTypes[type] instanceof Function)) {
-				types.push(FieldTypes[type]);
-			}
-		}
-		return types[Math.floor(Math.random() * types.length)];
-	}
-
 }

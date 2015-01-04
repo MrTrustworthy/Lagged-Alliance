@@ -13,6 +13,10 @@ Position.distances = {
 	LINEOFSIGHT: 1
 }
 
+Position.convert = function(something){
+	return new Position(something.x, something.y);
+}
+
 Position.prototype.equals = function(other) {
 	return this.x === other.x && this.y === other.y;
 }
@@ -24,6 +28,10 @@ Position.prototype.diff = function(other) {
 	);
 }
 
+Position.prototype.by = function(amount){
+	return new Position(this.x/amount, this.y/amount);
+}
+
 Position.prototype.length = function(){
 
 	return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
@@ -31,6 +39,15 @@ Position.prototype.length = function(){
 
 Position.prototype.clone = function() {
 	return new Position(this.x, this.y);
+}
+
+Position.prototype.times = function(amount){
+	return new Position(this.x * amount, this.y * amount);
+}
+
+
+Position.prototype.add = function(position){
+	return new Position(this.x + position.x, this.y + position.y);
 }
 
 /**
@@ -42,6 +59,10 @@ Position.prototype.calcAlignmentCost = function(otherPos) {
 	return ((this.x === otherPos.x) || (this.y === otherPos.y)) ? 1 : 1.5; 
 }
 
+/**
+* calculates the distance of two positions.
+* uses LOS-distance by default, can also use manhattan
+*/
 Position.prototype.distanceTo = function(otherPos, variant) {
 
 	variant = variant || Position.distances.LINEOFSIGHT;
@@ -58,7 +79,4 @@ Position.prototype.distanceTo = function(otherPos, variant) {
 		var v2 = new THREE.Vector2(otherPos.x, otherPos.y);
 		return v1.distanceTo(v2);
 	}
-
-
-
 }

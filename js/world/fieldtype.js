@@ -26,6 +26,10 @@ var FieldTypeGenerator = function() {
 		movementCost: 1
 	});
 
+	this._types.forEach(function(type, index){
+		type.id = index;
+	});
+
 }
 
 FieldTypeGenerator.prototype.byID = function(index){
