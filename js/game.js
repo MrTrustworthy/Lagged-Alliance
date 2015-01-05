@@ -121,7 +121,7 @@ Game.prototype.loadSavegame = function(name) {
 
 			//loads new worlds
 			gameSave.worlds.forEach(function(worldSave) {
-				this._worlds.push(GameWorld.deserialize(worldSave));
+				this._worlds.push(Level.deserialize(worldSave));
 			}.bind(this));
 
 
@@ -172,7 +172,7 @@ Game.prototype.saveGame = function(name) {
 
 		var worldList = [];
 		this._worlds.forEach(function(world) {
-			worldList.push(GameWorld.serialize(world));
+			worldList.push(Level.serialize(world));
 		});
 
 		var save = {
@@ -204,7 +204,7 @@ Game.prototype.createRandomSaveGame = function(name) {
 
 		console.log("creating new worlds");
 		for (var i = 0; i < 5; i++) {
-			var world = new GameWorld(i);
+			var world = new Level(i);
 			world.createNewRandomWorld();
 			this._worlds.push(world);
 		}

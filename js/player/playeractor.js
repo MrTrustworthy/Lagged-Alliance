@@ -44,7 +44,7 @@ PlayerActor.serialize = function(actor) {
 
 PlayerActor.deserialize = function(saved) {
 	var player = new PlayerActor(saved.name, saved.teamID, saved.worldID, saved.isAlive);
-	//if player is not alive, it will get killed by the gameworld TODO
+	//if player is not alive, it will get killed by the level TODO
 	player.position = new Position(saved.position.x, saved.position.y);
 	player.HP = new SimpleStat(saved.HP.max, saved.HP.val);
 	player.AP = new SimpleStat(saved.AP.max, saved.AP.val);
