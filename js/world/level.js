@@ -1,144 +1,181 @@
 "use strict";
 
-var Level = function(ID) {
+var Level = function (pos) {
 
-	this.ID = ID;
+    this.position = new Position(pos.x, pos.y);
 
-	this.map = null;
+    this.map = null;
 
-	this.ambientLight = new THREE.AmbientLight(0x909090);
+    this.ambientLight = new THREE.AmbientLight(0x909090);
 
-	this.aiController = new AIController();
+    this.gameObjects = [];
 
-	this.playerTeam = null;
+    // the items dropped on some fields
+    //this.items = [];
 
-	this.gameObjects = [];
+    this.teams = [];
 
-	//contains scripts in the following form:
-	// {position: pos, script: script}
-	this.worldScripts = [];
-
-}
+    this.controllerQ = new ControllerQ();
+};
 
 //------------------------------------------------------------------------------
 //---------------------------Show/Hide/De-Serialize-----------------------------
 //------------------------------------------------------------------------------
+Level.prototype.refresh = function () {
+    this.hide();
+    this.show();
+};
 
-Level.prototype.show = function() {
-	game.scene.add(this.ambientLight);
-	this.map.show();
-	this.aiController.getTeam().forEach(function(actor) {
-		actor.show();
-	});
-	this.gameObjects.forEach(function(object) {
-		object.show();
-	});
-	!!this.playerTeam && this.playerTeam.show();
-}
+Level.prototype.show = function () {
+    game.scene.add(this.ambientLight);
+    this.map.show();
 
-Level.prototype.hide = function() {
-	game.scene.remove(this.ambientLight);
-	this.map.hide();
-	this.aiController.getTeam().forEach(function(actor) {
-		actor.hide();
-	});
-	this.gameObjects.forEach(function(object) {
-		object.hide();
-	});
-	!!this.playerTeam && this.playerTeam.hide()
-}
+    this.teams.forEach(function (team) {
+        team.show();
+    });
 
+    this.gameObjects.forEach(function (object) {
+        object.show();
+    });
 
-Level.serialize = function(world) {
+    window.game.audio.playSound("ambient");
+};
 
+Level.prototype.hide = function () {
+    game.scene.remove(this.ambientLight);
+    this.map.hide();
 
-	var objectList = []
-	world.gameObjects.forEach(function(tree) {
-		objectList.push(Tree.serialize(tree));
-	});
+    this.teams.forEach(function (team) {
+        team.hide();
+    });
 
-	return {
-		ID: world.ID,
-		map: GameMap.serialize(world.map),
-		team: Team.serialize(world.aiController.getTeam()),
-		// actors: actorList,
-		objects: objectList
-	}
+    this.gameObjects.forEach(function (object) {
+        object.hide();
+    });
 
-}
+    window.game.audio.stopSound("ambient");
+};
 
-Level.deserialize = function(save) {
+/**
+ *
+ * @param level
+ * @returns {{position: (*|Tree.serialize.position|Field.serialize.position|Actor.serialize.position|CSSStyleDeclaration.position|position), map: *, objects: Array}}
+ */
+Level.serialize = function (level) {
 
-	var world = new Level(save.ID);
-	world.map = GameMap.deserialize(save.map);
+    // get all the environmentobjects serialized
+    var objectList = [];
+    level.gameObjects.forEach(function (obj) {
+        objectList.push(EnvironmentObject.serialize(obj));
+    });
 
-	var team = Team.deserialize(save.team);
+    return {
+        position: level.position,
+        map     : GameMap.serialize(level.map),
+        objects : objectList
+    }
+};
 
-	world.aiController.switchTeam(team);
-	team.setWorld(world);
+/**
+ *
+ * @param save
+ * @returns {Level}
+ */
+Level.deserialize = function (save) {
 
-	team.forEach(function(actor) {
-		var field = world.map.get(actor.position.x, actor.position.y);
-		actor.placeOn(field, true);
-	});
+    var level = new Level(save.position);
+    level.map = GameMap.deserialize(save.map);
 
-	save.objects.forEach(function(object) {
-		var tree = Tree.deserialize(object);
-		var field = world.map.get(tree.position.x, tree.position.y);
-		tree.placeOn(field);
-		world.gameObjects.push(tree);
-	});
+    save.objects.forEach(function (object) {
+        var obj = EnvironmentObject.deserialize(object);
+        var field = level.map.get(obj.position.x, obj.position.y);
+        level.addObject(obj, field);
+    });
 
-	// world event scripts
-	var flds = world.map.getBorderFields("south", false);
-	flds.forEach(function(fld){
-		fld.addEventListener("walkOn", function(event){
-			if(confirm("Are you sure you want to leave the map?")){
-				game.switchMap(-1);
-			}
-		});
-	});
+    return level;
+};
 
-
-	return world;
-}
 
 //------------------------------------------------------------------------------
 //----------------------World population----------------------------------------
 //------------------------------------------------------------------------------
 
 /**
- * Loads the actors from the game into the world.
- * This is needed for loading another map and drops the
- * player characters from the game.js into the world
+ * Border is optional.
+ * if not omitted and the player has no specified position, create random positions
  */
-Level.prototype.dropInPlayers = function(team) {
+Level.prototype.addTeam = function (team, border) {
 
-	// set ref & backref
-	this.playerTeam = team;
-	team.setWorld(this);
+    this.controllerQ.addTeam(team);
 
-	team.forEach(function(actor) {
-		var field = this.map.get(actor.position.x, actor.position.y);
-		actor.worldID = this.ID; // double tap?? na thats important for switchin!
-		actor.placeOn(field);
-	}.bind(this));
-}
+    // set refs for the team
+    this.teams.push(team);
+    team.setLevel(this);
+
+    // load the players to the correct fields
+    team.forEach(function (player) {
+
+        // if the player position isn't set, he was just newly
+        // created and we need to look for a free field ourselves
+        var fld;
+        if (!player.position) {
+            console.info("no previous position found for this player, generating...");
+            // either generate a "random" field if there is no border specified (first load)
+            // or drop then in at a specific border (when called from transitioning teams)
+            if (!!border) fld = chance.shuffle(this.map.getBorderFields(border, true))[0];
+            else fld = this.map.getFreeField();
+
+        } else { // if there is a position specified in the player (from loading a savegame);
+            fld = this.map.get(player.position);
+        }
+        // console.info("dropping player", player, "on field", fld, "in level", this);
+        player.placeOn(fld);
+    }.bind(this));
+};
+
 
 /**
- *
+ *  Removes a team from this level to place it somewhere else
+ * @param team
  */
-Level.prototype.removePlayerTeam = function() {
-	this.playerTeam.forEach(function(player) {
-		player.placedOn.removeContent();
-		player.placedOn = null; //need?
-		player.hide();
-	});
-	var buffer = this.playerTeam;
-	this.playerTeam = null;
-	return buffer;
-}
+Level.prototype.removeTeam = function (team) {
 
+    this.controllerQ.removeTeam(team);
+
+    // find out which team to remove
+    var index = -1;
+    this.teams.forEach(function (tm, i) {
+        if (tm.equals(team)) index = i;
+    });
+    if (index === -1) throw new Error("Team not in level!!");
+    // remove team from list;
+    this.teams.splice(index, 1);
+
+    team.removeFromLevel();
+};
+
+/**
+ * Adds an item to a field in this level
+ * @param object
+ * @param field
+ */
+Level.prototype.addObject = function (object, field) {
+    this.gameObjects.push(object);
+    object.placeOn(field);
+    //object.show();
+};
+
+/**
+ * Removes an object from the game
+ * @param object
+ */
+Level.prototype.removeObject = function (object) {
+    var i = this.gameObjects.indexOf(object);
+    if (i === -1) throw new Error("Dont have that object");
+
+    this.gameObjects.splice(i, 1);
+    object.remove();
+};
 
 //------------------------------------------------------------------------------
 //---------------------------Randomizer-----------------------------------------
@@ -147,82 +184,26 @@ Level.prototype.removePlayerTeam = function() {
 /**
  * Generates a completely random Level.
  */
-Level.prototype.createNewRandomWorld = function() {
+Level.prototype.createRandomLevel = function () {
 
-	//load random map
-	this.map = new GameMap(50);
-	this.map.loadRandomMap();
+    //load random map
+    this.map = new GameMap(50);
+    this.map.loadRandomMap();
 
-	//loading random players
-	// var actorList = []
-	var team = new Team(this.ID, "AI");
-	team.setWorld(this);
-
-	for (var i = 0; i < 3; i++) {
-		var randName = (chance.first() + " " + chance.last());
-		var actor = new PlayerActor(randName, 1, this.ID, true);
-		actor.placeOn(this.map.getFreeField());
-		team.addActor(actor);
-	}
-
-	this.aiController.switchTeam(team);
-
-	//load random objects
-	for (var i = 0; i < 30; i++) {
-		var tree = new Tree();
-		this.gameObjects.push(tree);
-		tree.placeOn(this.map.getFreeField());
-	}
-}
-
-
-
-//------------------------------------------------------------------------------
-//----------------------Unit Movement-------------------------------------------
-//------------------------------------------------------------------------------
+    //load random objects
+    for (var i = 0; i < 30; i++) {
+        this.addObject(
+            EnvironmentObject.createRandom(),
+            this.map.getFreeField()
+        );
+    }
+};
 
 /**
- * Calculates a path, then:
- * moves the object to the next node until it reaches the target node.
+ *
+ * @param other
+ * @returns {*}
  */
-Level.prototype.moveTo = function(actor, target) {
-
-	var deferred = new Deferred();
-
-	var path;
-
-	try {
-		path = this.map.findPath(actor.placedOn, target);
-	} catch (e) {
-		console.warn("no path could be found");
-		deferred.resolve();
-	}
-
-
-	var move_to_next = function() {
-
-		//no futher fields available -> end loop
-		if (path.length === 1) {
-			deferred.resolve();
-			return;
-		}
-
-		// go on if there are still fields to move to
-		var curr_field = path.pop();
-		curr_field.removeContent();
-		var end_field = path[path.length - 1];
-
-		// call the animation function.
-		actor.moveToField(end_field).then(move_to_next, function() {
-			deferred.resolve();
-		});
-	}.bind(this);
-
-
-	// do i need to force this async??
-	if (path.length === 0) deferred.resolve();
-	else move_to_next();
-
-	return deferred.promise;
-
-}
+Level.prototype.equals = function (other) {
+    return this.position.equals(other.position);
+};

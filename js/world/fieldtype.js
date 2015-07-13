@@ -8,7 +8,6 @@ var FieldTypeGenerator = function() {
 		movementCost: 3
 	});
 
-
 	this._types.push({
 		name: "grass",
 		movementCost: 1
@@ -26,25 +25,25 @@ var FieldTypeGenerator = function() {
 		movementCost: 1
 	});
 
-	this._types.forEach(function(type, index){
+	this._types.forEach(function(type, index) {
 		type.id = index;
 	});
 
-}
+};
 
-FieldTypeGenerator.prototype.byID = function(index){
+FieldTypeGenerator.prototype.byID = function(index) {
 	return this._types[index];
-}
+};
 
-FieldTypeGenerator.prototype.random = function(index){
-	return this._types[Math.floor(Math.random()*this._types.length)];
-}
+FieldTypeGenerator.prototype.random = function() {
+	return this._types[Math.floor(Math.random() * this._types.length)];
+};
 
-FieldTypeGenerator.prototype.getAll = function(){
+FieldTypeGenerator.prototype.getAll = function() {
 
 	var obj = {};
-	this._types.forEach(function(element, index){
+	this._types.forEach(function(element) {
 		obj[element.name] = element;
 	});
 	return obj;
-}
+};

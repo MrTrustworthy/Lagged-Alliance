@@ -3,13 +3,13 @@ var WorldEvent = function(name, fieldRef) {
 	this.name = name;
 	this.field = fieldRef;
 
-}
+};
 
 
 WorldEvent.prototype.execute = function() {
 	console.error("this shouldnt happen");
 	return null;
-}
+};
 
 
 //-----------------------------------------------------------------
@@ -18,7 +18,7 @@ WorldEvent.prototype.execute = function() {
 
 var ExplosionScript = function(fieldRef) {
 	WorldEvent.apply(this, ["explosion", fieldRef]);
-}
+};
 
 ExplosionScript.prototype = Object.create(WorldEvent.prototype);
 
@@ -34,20 +34,20 @@ ExplosionScript.prototype.execute = function() {
 		explosion.start();
 	}
 
-}
+};
 
 //-----------------------------------------------------------------
 //-----------------------------------------------------------------
 //-----------------------------------------------------------------
 var TravelScript = function(fieldRef) {
 	WorldEvent.apply(this, ["travel", fieldRef]);
-}
+};
 
 TravelScript.prototype = Object.create(WorldEvent.prototype);
 
 TravelScript.prototype.execute = function() {
 	console.log("Traveling");
-}
+};
 
 //-----------------------------------------------------------------
 //-----------------------------------------------------------------
@@ -61,4 +61,4 @@ var WorldEventList = {
 	"default": DefaultScript,
 	"explosion": ExplosionScript,
 	"travel": TravelScript
-}
+};

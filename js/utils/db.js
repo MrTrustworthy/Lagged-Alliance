@@ -4,7 +4,7 @@ var Database = function() {
 
 	this.isLoaded = false;
 
-}
+};
 
 /**
  * Connects the this._db property to the database instance
@@ -32,21 +32,21 @@ Database.prototype.init = function() {
 		this._db = res.target.result;
 		console.log("Database up and running", this._db);
 		this.isLoaded = true;
-		deferred.resolve(this._db);
+		deferred.resolve(this);
 	}.bind(this);
 
 	openRequest.onerror = function(res) {
 		console.log("Error");
 		deferred.reject()
 
-	}
+	};
 	openRequest.onblocked = function() {
 		console.error("Database Blocked!");
 		deferred.reject();
-	}
+	};
 
 	return deferred.promise;
-}
+};
 
 //------------------------------------------------------------------------------
 //---------------------Saving Games---------------------------------------------
@@ -68,13 +68,13 @@ Database.prototype.saveGame = function(savegame) {
 	request.onsuccess = function(r) {
 		console.log("Saved Game!", r);
 		deferred.resolve(r);
-	}
+	};
 	request.onerror = function(r) {
 		console.log("Couldn't save a game with this name");
 		deferred.reject(r);
 	}
 
-}
+};
 
 /**
  * Loads and returns all currently saved maps
@@ -97,15 +97,15 @@ Database.prototype.getSavegames = function() {
 			deferred.update(cursor.value);
 			cursor.continue();
 		}
-	}
+	};
 
 	request.onerror = function(e) {
 		console.error("Couldn't load all!", e);
-	}
+	};
 
 	transaction.oncomplete = function() {
 		deferred.resolve(savegames);
-	}
+	};
 
 	return deferred.promise;
-}
+};

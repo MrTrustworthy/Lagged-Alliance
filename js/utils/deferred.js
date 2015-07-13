@@ -1,156 +1,155 @@
-var Deferred = function() {
+var Deferred = function () {
 
-	this.FULFILLED = 0;
-	this.REJECTED = 1;
-	this.UNFULFILLED = 2;
+    this.FULFILLED = 0;
+    this.REJECTED = 1;
+    this.UNFULFILLED = 2;
 
-	this.promise = new Promise();
+    this.promise = new Promise();
 
-	this.state = this.UNFULFILLED;
-}
+    this.state = this.UNFULFILLED;
+};
 
 
 /**
  * returns a promise for an array containing all the promised values
+ * in the same order as the promises were given
  */
-Deferred.when = function() {
-	var __deferred = new Deferred();
+Deferred.when = function () {
+
+    var __deferred = new Deferred();
+
+    var promises = [];
+
+    for (var i = 0; i < arguments.length; i++) {
+        if (arguments[i] instanceof Promise) promises.push(arguments[i]);
+    }
+
+    var toGo = promises.length;
+
+    if (toGo < 1) throw new Error("No promises submitted");
+
+    // save the solve-values in the same
+    var solveValues = [];
+    solveValues.length = toGo;
+
+    promises.forEach(function (promise, index) {
+        // after the promise is fulfilled
+        promise.then(function (value) {
+
+            __deferred.update(value);
+            solveValues[index] = value;
+
+            // one less to go;
+            if (--toGo === 0) __deferred.resolve(solveValues);
+        });
+    });
+    return __deferred.promise;
+};
+
+Deferred.prototype.resolve = function (value) {
+
+    if (this.state === this.UNFULFILLED) {
+        this.promise._resolveFunctions.forEach(function (func) {
+            func(value);
+        });
+
+        this.state = this.FULFILLED;
+        this.promise.state = this.FULFILLED;
+
+        this.promise.endValue = value;
+        return true;
+
+    } else {
+        console.warn("Promise already", this.state);
+        return false;
+    }
+};
+
+Deferred.prototype.reject = function (error) {
+    if (this.state === this.UNFULFILLED) {
+        this.promise._rejectFunctions.forEach(function (func) {
+            func(error);
+        });
+
+        this.state = this.REJECTED;
+        this.promise.state = this.REJECTED;
+
+        this.promise.endValue = error;
+        return true;
+
+    } else {
+        console.warn("Promise already", this.state);
+        return false;
+    }
+};
+
+Deferred.prototype.update = function (value) {
+    if (this.state === this.UNFULFILLED) {
+        this.promise._updateFunctions.forEach(function (func) {
+            func(value);
+        });
+        return true;
+
+    } else {
+        console.warn("Promise already", this.state);
+        return false;
+    }
+};
 
 
-	var promises = arguments.filter(function(arg) {
-		return (arg instanceof Promise);
-	});
+var Promise = function () {
 
-	var toGo = promises.length;
+    this.FULFILLED = 0;
+    this.REJECTED = 1;
+    this.UNFULFILLED = 2;
 
-	if (toGo < 1) throw Error("No promises submitted");
+    this.state = this.UNFULFILLED;
+    this.endValue = null;
 
-	// save the solve-values in the same 
-	var solveValues = [];
-	solveValues.length = toGo;
+    this.deferred = null;
 
-	promises.forEach(function(promise, index) {
+    this._resolveFunctions = [];
 
-		// after the promise is fulfilled
-		promise.then(function(value) {
+    this._rejectFunctions = [];
 
-			__deferred.update(value);
-			solveValues[index] = value;
+    this._updateFunctions = [];
 
-			// one less to go;
-			toGo -= 1;
-			if (toGo === 0) __deferred.resolve(solveValues);
+};
 
-		})
-	});
-	return __deferred.promise;
-}
+Promise.prototype.then = function (onResolve, onError, onUpdate) {
 
-Deferred.prototype.resolve = function(value, strict) {
+    this.deferred = this.deferred || new Deferred();
 
-	if (this.state === this.UNFULFILLED) {
-		this.promise._resolveFunctions.forEach(function(func) {
-			func(value);
-		});
+    if (onResolve) {
+        //if the deferred is already resolved, trigger the function right now
+        if (this.state === this.FULFILLED) {
+            //console.info("Is fulfilled already, executing");
+            onResolve(this.endValue);
+        }
+        // else put it in queue
+        this._resolveFunctions.push(function (value) {
+            this.deferred.resolve(onResolve(value));
+        }.bind(this));
+    }
 
-		this.state = this.FULFILLED;
-		this.promise.state = this.FULFILLED;
+    if (onError) {
+        //if the deferred is already rejected, trigger the function right now
+        if (this.state === this.REJECTED) {
+            //console.info("Is rejected already, executing");
+            onError(this.endValue);
+        }
+        // else put it in queue
+        this._rejectFunctions.push(function (error) {
+            this.deferred.reject(onError(error));
+        }.bind(this));
+    }
 
-		this.promise.endValue = value;
-		return true;
+    if (onUpdate) {
+        this._updateFunctions.push(function (value) {
+            this.deferred.update(onUpdate(value));
+        }.bind(this));
+    }
 
-	} else if (!!strict) {
-		throw new Error("Promise already", this.state);
-	}
-	return false;
-}
+    return this.deferred.promise;
 
-Deferred.prototype.reject = function(error, strict) {
-	if (this.state === this.UNFULFILLED) {
-		this.promise._rejectFunctions.forEach(function(func) {
-			func(error);
-		});
-
-		this.state = this.REJECTED;
-		this.promise.state = this.REJECTED;
-
-		this.promise.endValue = error;
-		return true;
-
-	} else if (!!strict) {
-		throw new Error("Promise already", this.state);
-	}
-	return false;
-}
-
-Deferred.prototype.update = function(value, strict) {
-	if (this.state === this.UNFULFILLED) {
-		this.promise._updateFunctions.forEach(function(func) {
-			func(value);
-		});
-		return true;
-
-	} else if (!!strict) {
-		throw new Error("Promise already", this.state);
-	}
-	return false;
-}
-
-
-
-var Promise = function() {
-
-	this.FULFILLED = 0;
-	this.REJECTED = 1;
-	this.UNFULFILLED = 2;
-
-	this.state = this.UNFULFILLED;
-	this.endValue = null;
-
-	this.deferred = null;
-
-	this._resolveFunctions = [];
-
-	this._rejectFunctions = [];
-
-	this._updateFunctions = [];
-
-}
-
-Promise.prototype.then = function(onResolve, onError, onUpdate) {
-
-	this.deferred = this.deferred || new Deferred();
-
-	if (onResolve) {
-		//if the deferred is already resolved, trigger the function right now
-		if (this.state === this.FULFILLED) {
-			console.info("Is fulfilled already, executing");
-			onResolve(this.endValue);
-		}
-		// else put it in queue
-		this._resolveFunctions.push(function(value) {
-			this.deferred.resolve(onResolve(value));
-		}.bind(this));
-	}
-
-	if (onError) {
-		//if the deferred is already rejected, trigger the function right now
-		if (this.state === this.REJECTED) {
-			console.info("Is rejected already, executing");
-			onError(this.endValue);
-		}
-		// else put it in queue
-		this._rejectFunctions.push(function(error) {
-			this.deferred.reject(onError(error));
-		}.bind(this));
-	}
-
-	if (onUpdate) {
-		this._updateFunctions.push(function(value) {
-			this.deferred.update(onUpdate(value));
-		}.bind(this));
-	}
-
-	return this.deferred.promise;
-
-}
+};

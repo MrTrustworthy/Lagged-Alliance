@@ -7,39 +7,59 @@
 
 	<script type="text/javascript" src="lib/three.js"></script>
 	<script type="text/javascript" src="lib/stats.js"></script>
+	<script type="text/javascript" src="lib/chance.js"></script>
 
 	<script type="text/javascript" src="js/utils/deferred.js"></script>
 	<script type="text/javascript" src="js/utils/utility.js"></script>
+	<script type="text/javascript" src="js/utils/map2d.js"></script>
 	<script type="text/javascript" src="js/utils/texturemanager.js"></script>
-	<!--script type="text/javascript" src="js/utils/gameconstants.js"></script-->
+    <script type="text/javascript" src="js/utils/geometrymanager.js"></script>
+	<script type="text/javascript" src="js/utils/audiomanager.js"></script>
 	<script type="text/javascript" src="js/utils/position.js"></script>
 	<script type="text/javascript" src="js/utils/db.js"></script>
 	<script type="text/javascript" src="js/utils/simplestat.js"></script>
-	<script type="text/javascript" src="js/utils/chance.js"></script>
+	<script type="text/javascript" src="js/utils/controllerqueue.js"></script>
 
 	<script type="text/javascript" src="js/gameobjects/gameobject.js"></script>
+    <script type="text/javascript" src="js/gameobjects/items/item.js"></script>
 	<script type="text/javascript" src="js/gameobjects/tree.js"></script>
+    <script type="text/javascript" src="js/gameobjects/environmenttypes.js"></script>
+    <script type="text/javascript" src="js/gameobjects/environmentobject.js"></script>
+    <script type="text/javascript" src="js/gameobjects/items/weapon.js"></script>
+
 
 	<script type="text/javascript" src="js/world/fieldtype.js"></script>
 	<script type="text/javascript" src="js/world/field.js"></script>
-	<!--script type="text/javascript" src="js/world/fieldscript.js"></script-->
+
 
 	<script type="text/javascript" src="js/world/pathnode.js"></script>
 	<script type="text/javascript" src="js/world/level.js"></script>
 	<script type="text/javascript" src="js/world/gameworld.js"></script>
 	<script type="text/javascript" src="js/world/gamemap.js"></script>
 
+    <script type="text/javascript" src="js/ui/dialogbase.js"></script>
 	<script type="text/javascript" src="js/ui/actionbar.js"></script>
-	
+    <script type="text/javascript" src="js/ui/mapdialog.js"></script>
+    <script type="text/javascript" src="js/ui/inventorydialog.js"></script>
+    <script type="text/javascript" src="js/ui/editdialog.js"></script>
+
 	<script type="text/javascript" src="js/player/inputhandler.js"></script>
-	<script type="text/javascript" src="js/player/playeractor.js"></script>
+	<script type="text/javascript" src="js/player/actor.js"></script>
+	<script type="text/javascript" src="js/player/playerstats.js"></script>
 	<script type="text/javascript" src="js/player/team.js"></script>
 	<script type="text/javascript" src="js/player/healthbar.js"></script>
-	<script type="text/javascript" src="js/attacks/attack.js"></script>
-	<script type="text/javascript" src="js/attacks/explosion.js"></script>
+    <script type="text/javascript" src="js/player/inventory.js"></script>
 	<script type="text/javascript" src="js/player/playercontroller.js"></script>
 	<script type="text/javascript" src="js/player/aicontroller.js"></script>
-	
+
+	<script type="text/javascript" src="js/attacks/attack.js"></script>
+	<script type="text/javascript" src="js/attacks/shot.js"></script>
+	<script type="text/javascript" src="js/attacks/burstshot.js"></script>
+	<script type="text/javascript" src="js/attacks/explosion.js"></script>
+
+	<!-- loading this last! -->
+	<script type="text/javascript" src="js/gameobjects/items/armory.js"></script>
+
 	<script type="text/javascript" src="js/game.js"></script>
 	<script type="text/javascript" src="js/gamecamera.js"></script>
 
@@ -58,7 +78,7 @@
 
 			varying vec2 vUv;
 
-			void main( void ) 
+			void main( void )
 			{
 				float time = iGlobalTime * .5+23.0;
 			    // uv should be the 0-1 uv of texture... gl_FragCoord.xy
@@ -70,7 +90,7 @@
 				float inten = .005;
 
 
-				for (int n = 0; n < MAX_ITER; n++) 
+				for (int n = 0; n < MAX_ITER; n++)
 				{
 					float t = time * (1.0 - (3.5 / float(n+1)));
 					i = p + vec2(cos(t - i.x) + sin(t + i.y), sin(t - i.y) + cos(t + i.x));
@@ -80,11 +100,9 @@
 				c = 1.17-pow(c, 1.4);
 				vec3 colour = vec3(pow(abs(c), 8.0));
 			    colour = clamp(colour + vec3(0.1, 0.25, 0.4), 0.0, 1.0);
-			    
+
 				gl_FragColor = vec4(colour, 1.0);
 			}
-
-
 	</script>
 
 	<script type="x-shader/x-fragment" id="vShader">
@@ -98,7 +116,7 @@
 			    gl_Position = projectionMatrix * modelViewMatrix * vec4(position , 1.0);
 			}
 
-			
+
 	</script>
 
 	<!-- EXPLOSION SHADERS -->
@@ -208,7 +226,7 @@
 		  vec3 fade_xyz = fade(Pf0);
 		  vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
 		  vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
-		  float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x); 
+		  float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x);
 		  return 2.2 * n_xyz;
 		}
 
@@ -278,7 +296,7 @@
 		  vec3 fade_xyz = fade(Pf0);
 		  vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
 		  vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
-		  float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x); 
+		  float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x);
 		  return 2.2 * n_xyz;
 		}
 
@@ -306,13 +324,13 @@
 		    noise = 10.0 *  -.10 * turbulence( .5 * normal + time );
 		    float b = 1.0 * pnoise( 0.05 * position + vec3( 2.0 * time ), vec3( 100.0 ) );
 		    float displacement = - noise + b;
-		    
+
 		    vec3 newPosition = position + normal * displacement;
 		    gl_Position = projectionMatrix * modelViewMatrix * vec4( newPosition, 1.0 );
 
 		}
 
-			
+
 	</script>
 
 	<script type="x-shader/x-fragment" id="explosionFShader">
@@ -338,7 +356,7 @@
 
 		}
 
-			
+
 	</script>
 
 
@@ -348,13 +366,7 @@
 		window.onload = function() {
 			"use strict";
 
-
-
 			window.game = new Game();
-			window.game.init();
-			//window.game.loadGame();
-
-
 		};
 	</script>
 
@@ -363,6 +375,33 @@
 
 
 <body>
+	<canvas id="gameCanvas"></canvas>
+	<dialog id="mapDialog">
+		<canvas id="mapCanvas"></canvas>
+	</dialog>
+
+    <dialog id="editDialog">
+        <div id="editDiv"></div>
+    </dialog>
+
+    <dialog id="inventoryDialog">
+        <div class="inventoryContainer">
+            <canvas id="inventoryEquippedCanvas"></canvas>
+        </div>
+        <div class="inventoryContainer">
+            <p>ALL ITEMS:</p>
+            <table id="inventoryItemsTable"></table>
+        </div>
+
+        <!--canvas id="inventoryItemCanvas"></canvas-->
+    </dialog>
+
+	<div id="uiBar">
+		<div class="uiTabs" id="consoleTab"></div>
+		<div class="uiTabs" id="selectedTab"></div>
+		<div class="uiTabs" id="saveTab"></div>
+		<div class="uiTabs" id="commandTab"></div>
+	</div>
 
 </body>
 </html>

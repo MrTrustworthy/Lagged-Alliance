@@ -1,102 +1,116 @@
-var Explosion = function(field, size, damage) {
-
-	// the origin field of the explosion
-	this.field = field;
-
-	// size of the explosion measured in fields
-	// if the size is 0, it only affects the original field
-	this.size = size || 1;
-
-	// how much damage the explosion does
-	this.damage = damage || 10;
-
-}
-
+var Explosion = function (range) {
+    this.range = range;
+};
 
 /**
-* 
-*/
-Explosion.prototype.start = function() {
+ * Plays the Explosion animation in the given range and resolves with an array containing all characters hit
+ * @param origin is ignored
+ * @param range
+ * @returns {Deferred.promise|*}
+ */
+Explosion.prototype.execute = function (origin, target) {
 
-	var deferred = new Deferred();
-	
-	// step 1: explosion animation
-	var material = this.getExplosionMaterial();
+    var deferred = new Deferred();
 
-	var geometry = new THREE.SphereGeometry(1, 64, 64);
+    var ball = this.generateProjectileModel();
 
-	var ball = new THREE.Mesh(geometry, material);
+    ball.position.x = target.placedOn.model.position.x;
+    ball.position.y = target.placedOn.model.position.y;
+    ball.position.z = 3;
 
-	ball.position.x = this.field.model.position.x;
-	ball.position.y = this.field.model.position.y;
-	ball.position.z = 3;
+    // for size = 0, it's just the origin field.
+    var maxSize = (Field.FIELD_SIZE + (this.range * Field.FIELD_SIZE) / 2);
+    var tickAmount = 60;
+    var interval = Math.PI / tickAmount;
+    var i = 0;
 
-	window.game.scene.add(ball);
+    var affectedActors = [];
 
-	// for size = 0, it's just the origin field.
-	var maxSize = (Field.FIELD_SIZE + (this.size * Field.FIELD_SIZE) / 2);
-	var tickAmount = 120;
-	var interval = Math.PI/tickAmount;
-	var i = 0;
+    // this functions applies damage to everything in the area
+    var damageFunc = function () {
 
-	var tweenFunc = function(){
-		if(i === tickAmount){
-			window.game.scene.removeEventListener("tick", tweenFunc);
-			window.game.scene.remove(ball);
-		}else{
-			var val = Math.sin(i * interval) * maxSize;
-			ball.scale.x = val;
-			ball.scale.y = val;
-			ball.scale.z = val;
-			i++;
-		}
-	}
-	window.game.scene.addEventListener("tick", tweenFunc);
+        var affectedFields = game.getLevel().map.getRadius(target.placedOn, this.range, true);
+
+        affectedFields.forEach(function (field) {
+            field.blink();
+            if (!!field.occupant && field.occupant instanceof Actor) {
+                // adds the actors hit to the list
+                affectedActors.push(field.occupant);
+            }
+        }.bind(this));
+
+    }.bind(this);
 
 
-	// step 2: apply damage
+    var start = Date.now();
+    var colorFunc = function () {
+        ball.material.uniforms.time.value = .00025 * (Date.now() - start);
+    };
 
-	var affectedFields = game.world.map.neighboursOf(this.field, this.size);
-	affectedFields.push(this.field);
+    var tweenFunc = function () {
+        if (i === tickAmount) {
+            window.game.scene.removeEventListener("tick", tweenFunc);
+            window.game.scene.removeEventListener("tick", colorFunc);
+            window.game.scene.remove(ball);
+            damageFunc();
+            deferred.resolve(affectedActors);
+        } else {
+            var val = Math.sin(i * interval) * maxSize;
+            ball.scale.x = val;
+            ball.scale.y = val;
+            ball.scale.z = val;
+            i++;
+        }
+    };
 
-	affectedFields.forEach(function(field) {
-		field.blink();
-		if (!!field.occupant && field.occupant instanceof PlayerActor) {
-			field.occupant.hit(this.damage);
-		}
-	}.bind(this));
 
-	return deferred.promise;
-}
+    window.game.scene.add(ball);
+
+    window.game.scene.addEventListener("tick", colorFunc);
+    window.game.scene.addEventListener("tick", tweenFunc);
+
+    window.game.audio.playSound("explosion");
+
+
+    // step 2: apply damage
+
+
+    return deferred.promise;
+};
 
 /**
-* 
-*/
-Explosion.prototype.getExplosionMaterial = function() {
+ * generates the mesh & shader texture for the explosion
+ *
+ * @returns {THREE.Mesh}
+ */
+Explosion.prototype.generateProjectileModel = function () {
 
-	var vShader = document.getElementById("explosionVShader").text;
-	var fShader = document.getElementById("explosionFShader").text;
+    var vShader = document.getElementById("explosionVShader").text;
+    var fShader = document.getElementById("explosionFShader").text;
 
-	var material = new THREE.ShaderMaterial({
-		uniforms: {
-			tExplosion: {
-				type: "t",
-				value: THREE.ImageUtils.loadTexture("./media/textures/explosion2.png")
-			},
-			time: { // float initialized to 0
-				type: "f",
-				value: 0.0
-			}
-		},
-		vertexShader: vShader,
-		fragmentShader: fShader
-	});
+    var material = new THREE.ShaderMaterial({
+        uniforms      : {
+            tExplosion: {
+                type : "t",
+                value: THREE.ImageUtils.loadTexture("./media/textures/explosion2.png")
+            },
+            time      : { // float initialized to 0
+                type : "f",
+                value: 0.0
+            }
+        },
+        vertexShader  : vShader,
+        fragmentShader: fShader
+    });
 
-	var start = Date.now();
-	window.game.scene.addEventListener("tick", function() {
-		material.uniforms['time'].value = .00025 * (Date.now() - start);
-	});
 
-	return material;
+    var geometry = new THREE.SphereGeometry(1, 64, 64);
 
+    return new THREE.Mesh(geometry, material);
+
+};
+
+window.testExplosion = function(range){
+    range = range || 4;
+    new Explosion().execute(game.getSelected(), range);
 }

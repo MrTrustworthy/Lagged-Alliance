@@ -8,17 +8,25 @@ var Game = function() {
 	this.HEIGHT = window.innerHeight - 155;
 
 	var parameters = {
+		canvas: document.getElementById("gameCanvas"),
 		precision: "highp",
-		antialias: true,
-	}
+		antialias: true
+	};
 	this.renderer = new THREE.WebGLRenderer(parameters);
-	this.renderer.setSize(this.WIDTH, this.HEIGHT);
-	document.body.appendChild(this.renderer.domElement);
 
-	this.database = new Database();
+	this.renderer.setSize(this.WIDTH, this.HEIGHT);
+
+	//takes care of resizing the canvas on window resize
+	window.onresize = function() {
+		this.WIDTH = window.innerWidth;
+		this.HEIGHT = window.innerHeight - 155;
+		this.renderer.setSize(this.WIDTH, this.HEIGHT);
+	}.bind(this);
+
 	// this is the promise of init().
 	// calling on this ensures that the DB is always loaded
-	this.dbReady = this.database.init();
+	this.dbReady = new Database().init();
+	this.audio = new Audiomanager();
 
 
 	this.scene = new THREE.Scene();
@@ -29,61 +37,32 @@ var Game = function() {
 	this.textureManager = new TextureManager();
 	this.textureManager.loadAllAvailableTextures();
 
-	//o boy
-	this._worlds = [];
-	this.world = null;
+    this.geometryManager = new GeometryManager();
+    this.geometryManager.loadAllGeometries();
 
-	this.teams = [];
 
-}
+	this.gameWorld = null;
 
-/**
- * Initializes the most important Variables.
- * Assumes that a world was already loaded before.
- */
-Game.prototype.init = function() {
-	this.playerController = new PlayerController();
-	this.playerController.loadController();
-}
+	this.gameCamera = new GameCamera(this.WIDTH, this.HEIGHT);
 
-/**
- * switches the world
- */
-Game.prototype.switchMap = function(direction) {
-	console.log("Switching map");
+	this.inputHandler = new InputHandler();
 
-	this.moveTeam(direction);
+	this.actionBar = new ActionBar(this);
 
-	var newID = this.world.ID + direction;
+    this.editMode = true;
 
-	this.world.hide();
-	this.world = this._worlds[newID];
 
-	this.playerController.removeTeam();
-	this.playerController.switchTeam(this.world.playerTeam);
-
-	this.controllerQueue = [this.playerController, this.world.aiController];
-	this.world.show();
-}
-
-/**
-* moves a team from the current world towards a world in the
-* given direction (-1/1).
-*/
-Game.prototype.moveTeam = function(direction) {
-	var team = this.world.removePlayerTeam();
-	var destination = this._worlds[this.world.ID + direction];
-
-	var freeFields = destination.map.getBorderFields(direction > 0 ? "south" : "north", true);
-	freeFields = chance.shuffle(freeFields);
-
-	//puts the actors onto the border fields
-	team.forEach(function(actor, i){
-		actor.position = freeFields.shift().position.clone();
+    // load first save if available!
+	this.dbReady.then(function(database) {
+		database.getSavegames().then(function(saves) {
+			saves.sort(function(a, b) {
+				return b.date - a.date;
+			});
+			if(!!saves[0]) game.loadSavegame(saves[0].name);
+		});
 	});
 
-	destination.dropInPlayers(team);
-}
+};
 
 
 //------------------------------------------------------------------------------
@@ -97,10 +76,10 @@ Game.prototype.moveTeam = function(direction) {
  */
 Game.prototype.loadSavegame = function(name) {
 
-	game.dbReady.then(function() {
+	game.dbReady.then(function(database) {
 
 		//load all saves from the db, then start up the best one
-		this.database.getSavegames().then(function(saves) {
+		database.getSavegames().then(function(saves) {
 
 			var gameSave = saves.filter(function(save) {
 				return save.name === name;
@@ -108,53 +87,19 @@ Game.prototype.loadSavegame = function(name) {
 
 			console.info("Trying to load savegame", gameSave);
 
-			//hide world
-			if (!!this.world) this.world.hide();
+			// setting camera position
+			this.gameCamera.setPosition(gameSave.cameraPosition);
 
+			//loading gameworld
+			this.gameWorld && this.gameWorld.deactivateLevel();
+			this.gameWorld = GameWorld.deserialize(gameSave.world);
 
-			//remove old players (if there are) and load new ones
-			this.playerController.removeTeam();
-
-			//remove old worlds and load new ones
-			this._worlds = [];
-			this.teams = [];
-
-			//loads new worlds
-			gameSave.worlds.forEach(function(worldSave) {
-				this._worlds.push(Level.deserialize(worldSave));
-			}.bind(this));
-
-
-			// loads teams and places them into the worlds
-			gameSave.teams.forEach(function(teamSave) {
-
-				var team = Team.deserialize(teamSave);
-				this.teams.push(team);
-
-				var teamWorld = this._worlds[team.worldID];
-				//sets backref too
-				teamWorld.dropInPlayers(team);
-			}.bind(this));
-
-
-			this.world = this._worlds[gameSave.currentWorldID];
-
-			// var worldTeam = this.world.playerTeam || new Team()
-
-			this.playerController.switchTeam(this.world.playerTeam);
-
-			// "this.world" is the world with the last team on it.
-			this.world.show();
-
-			this.controllerQueue = [this.playerController, this.world.aiController];
-
-			// if there is not already a render-loop in progress, start it now
+			// start rendering
 			if (!this.__renderHandle) this.startGame();
-
 
 		}.bind(this));
 	}.bind(this));
-}
+};
 
 
 
@@ -163,30 +108,20 @@ Game.prototype.loadSavegame = function(name) {
  */
 Game.prototype.saveGame = function(name) {
 
-	game.dbReady.then(function() {
-
-		var teamList = [];
-		this.teams.forEach(function(team) {
-			teamList.push(Team.serialize(team));
-		});
-
-		var worldList = [];
-		this._worlds.forEach(function(world) {
-			worldList.push(Level.serialize(world));
-		});
+	game.dbReady.then(function(database) {
+		var world = GameWorld.serialize(this.gameWorld);
 
 		var save = {
 			name: name,
 			date: Date.now(),
-			worlds: worldList,
-			currentWorldID: this.world.ID,
-			teams: teamList
-		}
+			world: world,
+			cameraPosition: this.gameCamera.getPosition()
+		};
 
-		this.database.saveGame(save);
+		database.saveGame(save);
 
 	}.bind(this));
-}
+};
 
 //------------------------------------------------------------------------------
 //---------------------------Randomizer-----------------------------------------
@@ -199,55 +134,37 @@ Game.prototype.createRandomSaveGame = function(name) {
 
 	console.log("Generating random game:", this);
 
-	game.dbReady.then(function() {
-		this.playerController = new PlayerController();
+	game.dbReady.then(function(database) {
 
-		console.log("creating new worlds");
-		for (var i = 0; i < 5; i++) {
-			var world = new Level(i);
-			world.createNewRandomWorld();
-			this._worlds.push(world);
-		}
-
-		this.world = this._worlds[2];
-
-		//TODO load
-		var team = new Team(this.world.ID, "Player");
-		this.teams.push(team);
-
-
-		for (var i = 0; i < 4; i++) {
-			var randName = (chance.first() + " " + chance.last());
-			var player = new PlayerActor(randName, 0, 1, true);
-			team.addActor(player);
-			var fld = this.world.map.getFreeField();
-			player.position = fld.position.clone();
-		}
-
-		this.world.dropInPlayers(team);
+		this.gameWorld = new GameWorld(5);
+		this.gameWorld.createRandomWorld();
 
 		this.saveGame(name);
 	}.bind(this));
-}
+};
 
 
 //------------------------------------------------------------------------------
 //---------------------Game Loop functions--------------------------------------
 //------------------------------------------------------------------------------
 
+Game.prototype.getLevel = function() {
+	return this.gameWorld.activeLevel;
+};
+
+Game.prototype.getSelected = function() {
+	return this.gameWorld.activeLevel.controllerQ.playerController.selected;
+};
+
 /**
  * Switches to the next controller in queue
  */
 Game.prototype.endTurn = function() {
-
 	console.log("Switching Turns");
 
-	var old = this.controllerQueue.shift();
-	old.endTurn();
+	this.getLevel().controllerQ.endTurn();
 
-	this.controllerQueue.push(old);
-	this.controllerQueue[0].startTurn();
-}
+};
 
 /**
  * This is the render-loop that is responsible for
@@ -261,21 +178,43 @@ Game.prototype.startGame = function() {
 
 		requestAnimationFrame(renderFunc);
 
+
 		this.scene.dispatchEvent({
 			type: "tick"
 		});
 
-		this.controllerQueue[0].update();
+		var input = this.inputHandler.getInput();
+		this.gameWorld.activeLevel.controllerQ.update(input);
+		this.inputHandler.reset();
 
-		this.renderer.render(this.scene, this.playerController.camera.getCamera());
+		this.renderer.render(this.scene, this.gameCamera.getCamera());
 
 		this.fpsStats.end();
 	}.bind(this);
 
 	this.__renderHandle = requestAnimationFrame(renderFunc);
-}
+};
 
+/**
+ *
+ */
+Game.prototype.wait = function(seconds) {
 
+	var deferred = new Deferred();
+	var currTime = 0;
+	var endTime = seconds * 60;
+
+	var waitFunc = function() {
+		if (currTime === endTime) {
+			this.scene.removeEventListener("tick", waitFunc);
+			deferred.resolve();
+		}
+		currTime++;
+    }.bind(this);
+
+	this.scene.addEventListener("tick", waitFunc);
+	return deferred.promise;
+};
 
 /**
  * Utility function to fade out and delete
@@ -309,7 +248,7 @@ Game.prototype.fadeOut = function(object, seconds) {
 	}.bind(this));
 
 
-}
+};
 
 
 
@@ -323,4 +262,4 @@ Game.prototype.loadFPSStats = function() {
 	this.fpsStats.domElement.style.top = '0px';
 	document.body.appendChild(this.fpsStats.domElement);
 
-}
+};

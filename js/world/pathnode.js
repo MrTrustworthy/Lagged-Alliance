@@ -14,8 +14,8 @@ var PathNode = function(field) {
 	this.astar_g = 0;
 	this.astar_h = 0;
 
-}
+};
 
 PathNode.prototype.equals = function(other) {
 	return this.position.equals(other.position);
-}
+};

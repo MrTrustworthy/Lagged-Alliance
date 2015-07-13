@@ -15,23 +15,26 @@ var TextureManager = function() {
 		player: "player.jpg"
 	};
 
-}
+};
 
 
-
+/**
+ * Loads all available textures
+ */
 TextureManager.prototype.loadAllAvailableTextures = function() {
 
 	for (var key in this._textures) {
 		if (this._textures.hasOwnProperty(key) && key.indexOf("_hl") === -1) {
 
+			// console.info(key);
+
 			//normal textures
-			var material = new THREE.MeshLambertMaterial({
+            this._textures[key] = new THREE.MeshLambertMaterial({
 				map: THREE.ImageUtils.loadTexture(this.path + this._textures[key])
 			});
-			this._textures[key] = material;
 
 			//highlighted textures
-			console.log(key);
+			// console.log(key);
 			var material_hl = new THREE.MeshLambertMaterial({
 				map: THREE.ImageUtils.loadTexture(this.path + this._textures[key])
 			});
@@ -41,9 +44,9 @@ TextureManager.prototype.loadAllAvailableTextures = function() {
 		}
 	}
 	this._loaded = true;
-}
+};
 
 TextureManager.prototype.getTexture = function(name) {
 	if (!this._loaded) throw Error("Textures not yet ready");
 	return this._textures[name];
-}
+};

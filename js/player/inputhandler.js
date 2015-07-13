@@ -1,128 +1,153 @@
 "use strict";
 
-var InputHandler = function() {
+var InputHandler = function () {
 
-	this.states = {
-		DEFAULT: -1,
-		CLICKED: 0,
-		RIGHTCLICKED: 1,
-		DRAGGING: 2,
-	}
+    this.states = {
+        DEFAULT: -1,
+        CLICKED: 0,
+        RIGHTCLICKED: 1,
+        DRAGGING: 2
+    };
 
-	this.buttons = {
-		RIGHT: 2,
-		LEFT: 0
-	}
+    this.buttons = {
+        RIGHT: 2,
+        LEFT: 0
+    };
 
-	this.currentState = this.states.DEFAULT;
-	this.currMousePos = null;
-	this.lastMousePos = null;
-	this.scroll = 0;
+    this.currentState = this.states.DEFAULT;
+    this.currMousePos = null;
+    this.lastMousePos = null;
+    this.scroll = 0;
 
-	// values to keep track of mouse down-up-click
-	this._mouseDownTime = null;
+    // values to keep track of mouse down-up-click
+    this._mouseDownTime = null;
 
+    this._gameCanvas = document.getElementById("gameCanvas");
 
-	this.loadConnections();
-}
-
-/**
-* 
-*/
-InputHandler.prototype.getInput = function() {
-	return {
-		states: this.states,
-		state: this.currentState,
-		currMousePos: this.currMousePos,
-		lastMousePos: this.lastMousePos,
-		scroll: this.scroll
-	}
-
-}
+    this.loadConnections();
+};
 
 /**
-* 
-*/
-InputHandler.prototype.reset = function() {
+ * This adds a function to be executed when a certain key is pressed on the canvas
+ * @param keyChar
+ * @param handleFunc
+ */
+InputHandler.prototype.addKeyListener = function (keyChar, handleFunc) {
 
-	this.lastMousePos = this.currMousePos;
-	if (this.currentState === this.states.CLICKED ||
-		this.currentState === this.states.RIGHTCLICKED) {
-		this.currentState = this.states.DEFAULT;
-	}
-	this.scroll = 0;
-}
+    // do this for both the lower- and uppercase character
+    var keyCodes = [
+        keyChar.toUpperCase().charCodeAt(0),
+        keyChar.toLowerCase().charCodeAt(0)
+    ];
+
+    keyCodes.forEach(function (keyCode) {
+        document.addEventListener("keydown", function(event){
+            if(event.keyCode === keyCode) handleFunc();
+        });
+    }.bind(this));
+
+};
 
 /**
-* 
-*/
-InputHandler.prototype.loadConnections = function() {
+ *
+ * @returns {{states: *, state: *, currMousePos: *, lastMousePos: *, scroll: *}}
+ */
+InputHandler.prototype.getInput = function () {
+    return {
+        states: this.states,
+        state: this.currentState,
+        currMousePos: this.currMousePos,
+        lastMousePos: this.lastMousePos,
+        scroll: this.scroll
+    }
 
-	// prevent default right/left clicks
-	game.renderer.domElement.oncontextmenu = function() {
-		return false;
-	}.bind(this);
-	game.renderer.domElement.onclick = function(evt) {
-		return false;
-	}.bind(this);
+};
 
-	/**
-	 * real listeners start here
-	 */
-	game.renderer.domElement.onmousewheel = function(evt) {
-		if (evt.wheelDelta > 0) {
-			this.scroll += 1;
-		} else if (evt.wheelDelta < 0) {
-			this.scroll -= 1;
-		}
+/**
+ *
+ */
+InputHandler.prototype.reset = function () {
 
-	}.bind(this);
+    this.lastMousePos = this.currMousePos;
+    if (this.currentState === this.states.CLICKED ||
+        this.currentState === this.states.RIGHTCLICKED) {
+        this.currentState = this.states.DEFAULT;
+    }
+    this.scroll = 0;
+};
 
-	game.renderer.domElement.onmousedown = function(evt) {
 
-		if (evt.button === this.buttons.LEFT) {
-			this.currentState = this.states.DRAGGING;
-			this._mouseDownTime = Date.now();
-		}
-		// else if (evt.button === this.buttons.RIGHT) {
-		// 	this.currentState = this.states.RIGHTCLICKED;
-		// }
-
-		this.currMousePos = new Position(evt.x, evt.y);
-
-	}.bind(this);
+/**
+ *
+ */
+InputHandler.prototype.loadConnections = function () {
 
 
 
-	game.renderer.domElement.onmouseup = function(evt) {
+    // prevent default right/left clicks
+    this._gameCanvas.oncontextmenu = function () {
+        return false;
+    }.bind(this);
+    this._gameCanvas.onclick = function (evt) {
+        return false;
+    }.bind(this);
 
-		if (evt.button === this.buttons.LEFT) {
+    /**
+     * real listeners start here
+     */
+    this._gameCanvas.onmousewheel = function (evt) {
+        if (evt.wheelDelta > 0) {
+            this.scroll += 1;
+        } else if (evt.wheelDelta < 0) {
+            this.scroll -= 1;
+        }
 
-			if (this._mouseDownTime + 300 >= Date.now()) {
+    }.bind(this);
 
-				this.currentState = this.states.CLICKED;
+    this._gameCanvas.onmousedown = function (evt) {
 
-			} else {
+        if (evt.button === this.buttons.LEFT) {
+            this.currentState = this.states.DRAGGING;
+            this._mouseDownTime = Date.now();
+        }
+        // else if (evt.button === this.buttons.RIGHT) {
+        // 	this.currentState = this.states.RIGHTCLICKED;
+        // }
 
-				this.currentState = this.states.DEFAULT;
-			}
+        this.currMousePos = new Position(evt.x, evt.y);
 
-		} else if (evt.button === this.buttons.RIGHT) {
-
-			this.currentState = this.states.RIGHTCLICKED;
-
-		}
-
-		this.currMousePos = new Position(evt.x, evt.y);
-
-	}.bind(this);
+    }.bind(this);
 
 
-	game.renderer.domElement.onmousemove = function(evt) {
-		this.currMousePos = new Position(evt.x, evt.y);
-	}.bind(this);
+    this._gameCanvas.onmouseup = function (evt) {
 
-}
+        if (evt.button === this.buttons.LEFT) {
+
+            if (this._mouseDownTime + 300 >= Date.now()) {
+
+                this.currentState = this.states.CLICKED;
+
+            } else {
+
+                this.currentState = this.states.DEFAULT;
+            }
+
+        } else if (evt.button === this.buttons.RIGHT) {
+
+            this.currentState = this.states.RIGHTCLICKED;
+
+        }
+
+        this.currMousePos = new Position(evt.x, evt.y);
+
+    }.bind(this);
+
+
+    this._gameCanvas.onmousemove = function (evt) {
+        this.currMousePos = new Position(evt.x, evt.y);
+    }.bind(this);
+
+};
 
 
 
